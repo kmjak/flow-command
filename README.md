@@ -10,12 +10,15 @@ Research → Approach → Plan → Implement → Review → PR
 
 ## 導入
 
-`.claude/skills/flow/SKILL.md` を、使いたいプロジェクトの同じパスにコピーする。
+スキル本体は `skills/flow/SKILL.md`。個人スキル（全プロジェクト共通）として使うため、`~/.claude/skills/flow` にシンボリックリンクを張る。
 
 ```sh
-mkdir -p <your-project>/.claude/skills/flow
-cp .claude/skills/flow/SKILL.md <your-project>/.claude/skills/flow/
+ln -s "$(pwd)/skills/flow" ~/.claude/skills/flow
 ```
+
+リンクなので、このリポジトリで `SKILL.md` を編集すればそのまま全プロジェクトに反映される。
+
+特定のプロジェクトだけで使いたい場合は、そのプロジェクトの `.claude/skills/flow/` に `SKILL.md` をコピーする。
 
 ## 使い方
 
