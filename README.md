@@ -2,7 +2,7 @@
 
 チケット単位でアプリ開発を回す Claude Code スキル `/flow`。
 
-1 つのチケットを 6 フェーズで進め、進捗を 1 ファイルに集約することで「途中で止めて後から再開」できるようにする。
+プロジェクト初期化（init）・チケット作成（new）・開発（dev）の 3 モードを持つ。dev では 1 つのチケットを 6 フェーズで進め、進捗を 1 ファイルに集約することで「途中で止めて後から再開」できるようにする。
 
 ```
 Research → Approach → Plan → Implement → Review → PR
@@ -25,13 +25,17 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 ## 使い方
 
 ```
-/flow <ticket-id>
+/flow init                # プロジェクト初期化：docs 雛形 + context の下書き（最初に 1 回）
+/flow new <ticket-id>     # チケット作成：docs/tickets/<ticket-id>.md を対話で作る
+/flow dev <ticket-id>     # 6 フェーズで実装から PR まで進める
+/flow                     # 再開 / dev / new / init を選択肢で表示
 ```
 
 - 明示起動専用（`disable-model-invocation: true`）。Claude が勝手に発火させることはない。
 - チケット id は数値とは限らない（v1 はローカルのファイル名 stem）。
-- 状態ファイルが既にあれば、その `Status` のフェーズから再開する。無ければ新規作成して Research から始める。
-- 引数を省略すると、どのチケットか尋ねる。進行中の flow がちょうど 1 つなら、その再開を提案する。
+- モード名を付けない `/flow <ticket-id>` は実行せず、`/flow dev <ticket-id>` のことか確認するだけ。
+- dev は状態ファイルが既にあれば、その `Status` のフェーズから再開する。無ければ新規作成して Research から始める。
+- 典型的な流れ：`/flow init` → `/flow new <id>` → `/flow dev <id>`
 
 ## 規約パス（v1：ローカル docs のみ）
 
@@ -42,7 +46,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 | flow 状態 | `docs/flow/<ticket-id>/main.md` |
 | ブランチ名 | `<ticket-id>-<slug>` |
 
-`setup` / `init` は無い。上記パスは固定規約。
+上記パスは固定規約。`/flow init` はこの規約どおりの雛形を作るだけで、パスやソースの選択はしない。
 
 ## フェーズ
 
@@ -76,5 +80,5 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 
 ## v2 予定
 
-- ローカル docs 以外のチケット／知識ソース（Jira / GitHub Projects・Issues / Confluence）と、それらを選ぶ `setup` / `init`
+- ローカル docs 以外のチケット／知識ソース（Jira / GitHub Projects・Issues / Confluence）と、それらを選ぶ設定（`/flow init` の拡張）
 - 複数ブランチ実行とサブチケット分割（`docs/flow/<ticket-id>/<subticket>.md`）
