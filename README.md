@@ -13,8 +13,10 @@ Research → Approach → Plan → Implement → Review → PR
 スキル本体は `skills/flow/SKILL.md`。個人スキル（全プロジェクト共通）として使うため、`~/.claude/skills/flow` にシンボリックリンクを張る。
 
 ```sh
-ln -s "$(pwd)/skills/flow" ~/.claude/skills/flow
+ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 ```
+
+`-n` を付けないと、既にリンクがある状態で再実行したときにリンク先ディレクトリの中へ `flow` という循環リンクが作られ、スキルの読み込みが壊れるので注意。
 
 リンクなので、このリポジトリで `SKILL.md` を編集すればそのまま全プロジェクトに反映される。
 
