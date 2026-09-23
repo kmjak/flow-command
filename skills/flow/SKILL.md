@@ -47,7 +47,7 @@ allowed-tools: Read, Glob, Grep
 | ブランチ名 | `<ticket-id>-<slug>`（チケット id を接頭辞にする） |
 
 - **`docs/flow/` は git で管理しない**（`.gitignore` に入れる）。flow 状態は各個人の作業記録であり、共有物ではない。また PR に含めるとレビュアーが検討過程に引っ張られ、実装そのものを見たレビューにならないため。`main.md` を commit・PR に含めない。
-- **ドキュメント言語**：チケット・`docs/context/**`・flow 状態（`main.md`）の本文は `docs/flow.config.yml` の `language` で書く。既定は日本語（`ja`）。設定ファイルが無ければ日本語とする。チケットと context は見出しもこの言語にする（`main.md` の見出しは英語の固定キー。状態ファイルの節を参照）。
+- **ドキュメント言語**：チケット・`docs/context/**`・flow 状態（`main.md`）の本文、および PR のタイトル・本文は `docs/flow.config.yml` の `language` で書く。既定は日本語（`ja`）。設定ファイルが無ければ日本語とする。チケットと context は見出しもこの言語にする（`main.md` の見出しは英語の固定キー。状態ファイルの節を参照）。
   ```yaml
   # /flow settings (shared, committed)
   language: ja   # ja | en | その他の言語名
@@ -121,7 +121,10 @@ allowed-tools: Read, Glob, Grep
 
    対話で作った場合、完成したファイルには記入ガイドのコメントを残さない。自分で作る場合はコメントを残す（書くときのガイドになるため）。
 5. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
-6. 次の一手として `/flow new <ticket-id>` を案内する。commit はしない（ユーザーが頼んだ場合を除く）。
+6. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージを提示し、確認を得てから commit する（push はしない）。
+   - 自分で作る場合は、ユーザーが `overview.md` を書き終えてから commit するか、雛形のまま今 commit するかを尋ねる。
+   - init が作ったもの以外の変更は commit に含めない。
+7. 次の一手として `/flow new <ticket-id>` を案内する。
 
 ---
 
@@ -139,6 +142,7 @@ allowed-tools: Read, Glob, Grep
    - 必要なら `docs/context/**` やコードを読んで、質問を具体的にする。
 6. 下書きを提示し、合意したらファイルに書く。
 7. 次の一手として `/flow dev <ticket-id>` を案内する。状態ファイル（`docs/flow/...`）は作らない（dev の役目）。
+8. **commit はしない。** チケットはまとめて何枚も作ることがあるため、1 枚ずつ commit しない。チケットは、それを実装する PR の最初の commit として dev の Implement で commit する。
 
 チケットのテンプレート（日本語版。ドキュメント言語が日本語以外なら、見出しとコメントをその言語に訳して使う。該当しない項目も削らず「なし」と書く）：
 
@@ -176,7 +180,7 @@ allowed-tools: Read, Glob, Grep
 2. **状態ファイル `docs/flow/<ticket-id>/main.md` が存在する**場合：読んで `Status` から再開する。
    - `<phase>:awaiting-approval` → そのフェーズの要約とゲートを再提示し、停止して待つ。
    - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。`pr:in-progress` の場合は、先にそのブランチの PR が既に存在しないか確認する（Phase 6 手順 1）。
-   - `pr:awaiting-review` → PR のレビュー状況を確認する（Phase 6 手順 5）。
+   - `pr:awaiting-review` → PR の状況（レビュー・CI・コンフリクト）を確認する（Phase 6 手順 5）。
    - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない。
 3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し、Phase 1 を開始する。
 
@@ -193,6 +197,7 @@ allowed-tools: Read, Glob, Grep
 | Status  | research:in-progress               |
 | Ticket  | docs/tickets/<ticket-id>.md        |
 | Branch  | —                                  |
+| Base    | —                                  |
 | Updated | <YYYY-MM-DD HH:MM>                 |
 
 ## Research
@@ -202,7 +207,7 @@ allowed-tools: Read, Glob, Grep
 <!-- Phase 2: chosen implementation approach and key design decisions -->
 
 ## Plan
-<!-- Phase 3: branch name + ordered commit breakdown -->
+<!-- Phase 3: branch name, base branch, ordered commit breakdown -->
 
 ## Implementation Log
 <!-- Phase 4: commits made and notable decisions during implementation -->
@@ -226,7 +231,7 @@ allowed-tools: Read, Glob, Grep
 - **全フェーズの境界で停止する。** フェーズ完了時：セクションを書く → `Status` を `<phase>:awaiting-approval` にする → ユーザーに短い要約を出す → **止まる**。ユーザーの「続けて」等で次へ進む。この停止点が、後から `/flow dev <ticket-id>` で再開する地点になる。
 - **フェーズ内では小刻みに止めない。** 特に Implement は commit ごとに確認しない（commit 分割は Plan で承認済みのため）。
 - ゲートで承認ではなくフィードバックが来たら：現フェーズを修正し、セクションを書き直し、同じゲートを再提示する。
-- **PR だけは必ず止まる強ゲート**（Phase 6 参照）。前段のゲートを連打で飛ばしてきても、push / PR 作成の前に必ず一度停止する。PR 作成後はレビュアーの Approve まで `pr:awaiting-review` で待ち、Approve されて初めて `done` になる。
+- **PR だけは必ず止まる強ゲート**（Phase 6 参照）。前段のゲートを連打で飛ばしてきても、push / PR 作成の前に必ず一度停止する。PR 作成後は `pr:awaiting-review` で待ち、Approve 済みかつ CI 成功かつコンフリクトなしになって初めて `done` になる。
 
 ---
 
@@ -253,9 +258,10 @@ allowed-tools: Read, Glob, Grep
 
 目的：方針を具体的なブランチ＋commit 計画に落とす。
 
-1. **ブランチ**（`<ticket-id>-<slug>`）と、**順序付きの commit 分割**（各 commit の目的とおおまかな範囲）を決める。
+1. **ブランチ**（`<ticket-id>-<slug>`）、**Base**（分岐元であり PR の向き先。ユーザーの指定が無ければリモートのデフォルトブランチ＝`git symbolic-ref --short refs/remotes/origin/HEAD` の `origin/` を除いたもの）、**順序付きの commit 分割**（各 commit の目的とおおまかな範囲）を決める。
 2. **v1 は単一ブランチ。** 1 ブランチに収まらないなら、それはサブチケットに分割すべき＝ v2 の機能。v1 では**ユーザーに指摘して**一緒にチケットを絞る。自動分割やサブチケット自動生成はしない。
-3. ブランチと commit 一覧を `## Plan` に書き、ヘッダ表の `Branch` も埋める。
+   - チケットファイル（`docs/tickets/<ticket-id>.md`）が Base で未コミット（未追跡、または変更あり）なら、commit 分割の**先頭**に「チケットの追加」の commit を入れる。
+3. ブランチ・Base・commit 一覧を `## Plan` に書き、ヘッダ表の `Branch` と `Base` も埋める。
 4. `Status: plan:awaiting-approval` にして要約を出し、停止。
 5. 承認されたら、**他の作業より先に** `Status: implement:in-progress` にして Implement へ進む（ブランチ作成は Implement の手順 1 で行う。承認後・Status 更新前に作業すると、中断時に Plan のゲートが再提示されてしまうため）。
 
@@ -263,8 +269,8 @@ allowed-tools: Read, Glob, Grep
 
 目的：承認済みの方針と計画に沿って実装する。
 
-1. **ブランチの準備**：リポジトリの状態を確認する（git リポジトリであること。このチケットと無関係な未コミット変更があれば警告する）。承認済みブランチが無ければ作成し、既にあれば切り替えるだけにする（中断からの再開で作成済みのことがある）。既に目的のブランチ上なら何もしない。
-2. 承認済みブランチ上で、承認済みの commit 分割に従って実装・commit する。commit ごとの承認では止めない。
+1. **ブランチの準備**：リポジトリの状態を確認する（git リポジトリであること。このチケットと無関係な未コミット変更があれば警告する。ただし `docs/tickets/` 配下の他のチケットの未追跡ファイルは、まだ着手していないチケットなので警告の対象外とし、commit にも含めない）。承認済みブランチが無ければ `Base` の最新から作成し、既にあれば切り替えるだけにする（中断からの再開で作成済みのことがある）。既に目的のブランチ上なら何もしない。
+2. 承認済みブランチ上で、承認済みの commit 分割に従って実装・commit する。先頭がチケットの commit なら、`docs/tickets/<ticket-id>.md` だけを commit する（他のチケットは含めない）。commit ごとの承認では止めない。
 3. commit を積むごとに `## Implementation Log`（commit hash とメッセージ、実装中の重要な判断）と `Updated` を更新する。
 4. 承認された計画どおりに進められないと分かったら（ある commit を大きく変える必要がある、方針が誤っていた等）、停止して提起する。これは小さな確認ではなく本当の判断事項。
 5. 計画した commit を全て終えたら `Status: implement:awaiting-approval` にして、作ったものを要約し、停止。
@@ -275,7 +281,7 @@ allowed-tools: Read, Glob, Grep
 
 目的：作ったものと意図のズレを検出する。
 
-1. 実装した変更（例：`git diff <base>...HEAD`）を **Approach / Plan / チケット** と突き合わせる。両方向を見る：
+1. 実装した変更（`git diff <Base>...HEAD`。`Base` はヘッダ表の値）を **Approach / Plan / チケット** と突き合わせる。両方向を見る：
    - 合意と違う実装になっている点
    - 合意・チケットにあるのに未実装の点
 2. 結果を `## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。乖離一覧か「乖離なし」。
@@ -293,15 +299,19 @@ allowed-tools: Read, Glob, Grep
 目的：明示的な確認の後にだけ PR を出し、レビュアーの Approve まで見届ける。
 
 1. `Status: pr:in-progress` にする。まず、そのブランチの PR が既に存在しないか確認する（`gh pr list --head <branch> --state all`）。中断からの再開で既に作成済みなら、新しく作らずに URL を `## PR` に記録し、`Status: pr:awaiting-review` にして手順 5 へ進む。
-   無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ユーザーの指定が無ければリモートのデフォルトブランチ）・**PR タイトル**・変更概要（PR 本文の下書き）。
+   無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ヘッダ表の `Base`）・**PR タイトル**・変更概要（PR 本文の下書き）。タイトルと本文はドキュメント言語で書く。
 2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** このゲートは前段を飛ばしてきても必ず発生する。勝手に push / PR しない。
 3. 確認されたら push して PR を作成する（例：`gh pr create`）。
 4. PR タイトル・向き先・URL を `## PR` に書き、`Status: pr:awaiting-review` にして URL を報告し、停止する。**この時点では `done` にしない。** レビューは人が行うので、flow は待つだけ。ユーザーには、レビューが進んだら `/flow dev <ticket-id>` で再開するよう案内する。
-5. **レビュー状況の確認**（`pr:awaiting-review` から再開したとき）：`gh pr view <url> --json state,reviewDecision,reviews` で状況を確認する。
-   - **Approve 済み**（`reviewDecision` が `APPROVED`。レビュー必須でないリポジトリでは `reviews` に `APPROVED` がある）、またはマージ済み → `## PR` に結果を追記し、`Status: done` にする。
-   - **修正依頼あり**（`CHANGES_REQUESTED` やコメント）→ 指摘を要約して提示し、`Status: pr:in-progress` にして対応する。修正はブランチに commit し、`## Implementation Log` に「PR レビュー対応」として記録する。push の前に変更内容を提示して**停止し、確認を得てから push する**。push したら `Status: pr:awaiting-review` に戻して停止する。
-   - **まだレビューされていない** → その旨を伝え、`pr:awaiting-review` のまま停止する。
-   - **マージされずにクローズされた** → 報告し、どうするか尋ねる。勝手に `done` にしない。
+5. **PR の状況確認**（`pr:awaiting-review` から再開したとき）：このスキルのディレクトリにある `scripts/pr-status.sh <PR URL>` を実行する。1 行目が判定、2 行目以降が詳細。判定ごとに次のとおり進む（`done` にしてよいのは `approved` と `merged` だけ）：
+   - `approved`（Approve 済み・CI 全て成功・コンフリクトなし）または `merged` → `## PR` に結果を追記し、`Status: done` にする。
+   - `conflict`（Base とコンフリクト）→ `Status: pr:in-progress` に戻し、`Base` の最新を取り込んで解消する。取り込み方は merge を既定とする（rebase は force push が必要になるため、ユーザーが望んだ場合だけ）。
+   - `ci_failing`（CI 失敗）→ `Status: pr:in-progress` に戻し、失敗したチェック（`failing_checks`）のログを確認して（`gh pr checks`・`gh run view --log-failed`）原因を直す。
+   - `changes_requested`（修正依頼）→ `Status: pr:in-progress` に戻し、指摘を要約して提示してから対応する。
+   - `pending`（未レビュー・CI 実行中など）→ その旨と詳細を伝え、`pr:awaiting-review` のまま停止する。`commented_by` がある（コメントだけのレビュー）場合は内容を示し、対応するかユーザーに尋ねる。
+   - `closed`（マージされずにクローズ）→ 報告し、どうするか尋ねる。勝手に `done` にしない。
+
+   `conflict`・`ci_failing`・`changes_requested` への対応はブランチに commit し、`## Implementation Log` に「PR 対応：<判定>」として記録する。push の前に変更内容を提示して**停止し、確認を得てから push する**。push したら `Status: pr:awaiting-review` に戻して停止する。対応が方針や計画の変更を伴う大きさなら、その場で直さずに停止し、Approach／Implement に戻るかユーザーに尋ねる。
 
 ---
 
