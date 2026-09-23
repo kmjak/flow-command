@@ -1,6 +1,6 @@
 ---
 name: flow
-description: チケット単位で開発を回すフレームワーク。/flow で明示起動する。モードは init（プロジェクトの docs 雛形と context 下書きを作る）、new（チケットを対話で作る）、dev（1 チケットを 6 フェーズ Research → Approach → Plan → Implement → Review → PR で進める）。dev の進捗は docs/flow/<ticket-id>/main.md に集約するので、途中で止めても同じフェーズから再開できる。
+description: チケット単位で開発を回すフレームワーク。/flow で明示起動する。モードは init（プロジェクトの docs 雛形を作り、context を対話で作るか雛形だけ用意する）、new（チケットを対話で作る）、dev（1 チケットを 6 フェーズ Research → Approach → Plan → Implement → Review → PR で進める）。dev の進捗は docs/flow/<ticket-id>/main.md に集約するので、途中で止めても同じフェーズから再開できる。
 argument-hint: "[init | new <ticket-id> | dev <ticket-id>]"
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep
@@ -14,7 +14,7 @@ allowed-tools: Read, Glob, Grep
 
 | 起動 | モード | 単位 | 内容 |
 |------|--------|------|------|
-| `/flow init` | init | プロジェクト（最初に 1 回） | docs の雛形作成と `docs/context/` の下書き |
+| `/flow init` | init | プロジェクト（最初に 1 回） | docs の雛形作成と `docs/context/` の作成（対話 or 自分で書く） |
 | `/flow new <ticket-id>` | new | チケット（作るたび） | `docs/tickets/<ticket-id>.md` を対話で作る |
 | `/flow dev <ticket-id>` | dev | チケット（run ごと） | 6 フェーズで実装から PR まで進める |
 | `/flow <それ以外>` | — | — | 実行しない。`/flow dev <ticket-id>` のことか確認する（下記） |
@@ -47,7 +47,7 @@ allowed-tools: Read, Glob, Grep
 | ブランチ名 | `<ticket-id>-<slug>`（チケット id を接頭辞にする） |
 
 - **`docs/flow/` は git で管理しない**（`.gitignore` に入れる）。flow 状態は各個人の作業記録であり、共有物ではない。また PR に含めるとレビュアーが検討過程に引っ張られ、実装そのものを見たレビューにならないため。`main.md` を commit・PR に含めない。
-- **ドキュメント言語**：チケット本文と `docs/context/**` は `docs/flow.config.yml` の `language` で書く。既定は日本語（`ja`）。設定ファイルが無ければ日本語とする。チケットの見出しもこの言語にする。
+- **ドキュメント言語**：チケット・`docs/context/**`・flow 状態（`main.md`）の本文は `docs/flow.config.yml` の `language` で書く。既定は日本語（`ja`）。設定ファイルが無ければ日本語とする。チケットと context は見出しもこの言語にする（`main.md` の見出しは英語の固定キー。状態ファイルの節を参照）。
   ```yaml
   # /flow settings (shared, committed)
   language: ja   # ja | en | その他の言語名
@@ -63,7 +63,7 @@ allowed-tools: Read, Glob, Grep
 - 仮定を置いて進めるときは**その仮定を明示**し、ユーザーが直せるようにする（該当セクションにも記録する）。
 - 不要な手順や成果物だと感じたら、黙ってやらず（黙って省きもせず）**指摘する**。
 - 懸念や反対は**理由付きで率直に**言う。ユーザーが提案したというだけで同意しない。
-- ユーザーには相手の言語で話す。チケット・context はドキュメント言語（共通規約）で書く。`main.md` のセクション本文は英語で書く。
+- ユーザーには相手の言語で話す。チケット・context はドキュメント言語（共通規約）で書く。`main.md` のセクション本文もドキュメント言語で書く。
 
 ## ガードレール
 
@@ -80,16 +80,47 @@ allowed-tools: Read, Glob, Grep
 1. 現状を確認する：`docs/context/`・`docs/tickets/`・`docs/flow/` の有無と中身、git リポジトリかどうか、`docs/flow/` が無視されているか（`git check-ignore -q docs/flow/x`）。
 2. **ドキュメント言語を決める**（`docs/flow.config.yml` が既にあればその値を使い、尋ねない）：AskUserQuestion で「日本語（推奨・既定）」「English」を選択肢にして尋ねる（その他はユーザーが自由入力できる）。以降のチケットと `docs/context/**` はこの言語で書く。
 3. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
-   - `docs/context/`（下書きは手順 4）
+   - `docs/context/`（中身は手順 4）
    - `docs/tickets/.gitkeep`
    - `docs/flow.config.yml` — 手順 2 で決めた `language` を書く。
    - `.gitignore` に `docs/flow/` を追加（既に無視されていれば何もしない。`.gitignore` が無ければ作る）。`docs/flow/` 自体は dev が必要になったときに作るので、ここでは作らない。
-4. **context の下書き**：コードベース（README、パッケージ定義、ディレクトリ構成、主要なエントリポイントなど）を読み、`docs/context/overview.md` に下書きを書く。
-   - 内容の目安：サービスの目的、主要なドメイン概念、アーキテクチャ／ディレクトリ構成、技術スタック、開発・テストの実行方法。
-   - コードから読み取れた事実と、推測を分ける。推測には `(assumption)` を付け、分からないことは `Open questions` に挙げる。
-   - `docs/context/` に既にファイルがある場合は新規作成せず、足りない点を提案するにとどめる。
-   - 本文は手順 2 で決めたドキュメント言語で書く（見出しも同じ言語でよい）。
-5. 作ったものを要約し、`docs/context/overview.md` をユーザーに確認・修正してもらうよう促す。未解決の疑問点があれば質問する。
+4. **context を作る**：`docs/context/` に既にファイルがある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
+   - **対話で作る** — 下記「対話で作る場合」の手順で、各項目の内容をユーザーと一緒に決めて `docs/context/overview.md` を書く。
+   - **自分で作る** — 下記テンプレートの見出しと記入ガイドだけを入れた `docs/context/overview.md` を作り、中身はユーザーが書く。こちらからは内容を埋めない。
+
+   **対話で作る場合：**
+   1. 先にコードベース（README、パッケージ定義、ディレクトリ構成、主要なエントリポイントなど）を読み、各項目についてコードから読み取れる事実を集めておく。質問を具体的にし、答えの候補を示すためであり、読み取った内容をそのまま書くためではない。
+   2. テンプレートの項目を**1 つずつ**進める。項目ごとに、コードから読み取れた事実（出典のファイルを示す）と、分からない点・コードからは判断できない点を示し、ユーザーに質問する。特に「サービスの目的」と「主要なドメイン概念」はコードからは決めきれないので、ユーザーの言葉で決めてもらう。
+   3. その項目の文面を提示し、ユーザーが合意してから次の項目へ進む。**合意していない内容は書かない。** コードからの推測をユーザーの確認なしに事実として書かない。
+   4. その場で決まらない点は削らず「未決事項」に残す。ユーザーが「推測のままでよい」とした記述には `（推測）` を付ける。
+   5. 全項目が決まったら全体を提示し、最終確認を得てからファイルに書く。
+
+   `docs/context/overview.md` のテンプレート（日本語版。ドキュメント言語が日本語以外なら、見出しとコメントをその言語に訳して使う）：
+
+   ```markdown
+   # プロジェクト概要
+
+   ## サービスの目的
+   <!-- 何のためのサービスか。誰のどんな課題を解決するか。 -->
+
+   ## 主要なドメイン概念
+   <!-- このサービス固有の用語・概念と、その意味や関係。 -->
+
+   ## アーキテクチャ／ディレクトリ構成
+   <!-- 全体の構成と、主要なディレクトリ・モジュールの役割。 -->
+
+   ## 技術スタック
+   <!-- 言語、フレームワーク、主要なライブラリ、インフラ。 -->
+
+   ## 開発・テストの実行方法
+   <!-- セットアップ、起動、テスト、lint のコマンド。 -->
+
+   ## 未決事項
+   <!-- まだ決まっていないこと・分からないこと。 -->
+   ```
+
+   対話で作った場合、完成したファイルには記入ガイドのコメントを残さない。自分で作る場合はコメントを残す（書くときのガイドになるため）。
+5. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
 6. 次の一手として `/flow new <ticket-id>` を案内する。commit はしない（ユーザーが頼んだ場合を除く）。
 
 ---
@@ -150,7 +181,7 @@ allowed-tools: Read, Glob, Grep
 ## 状態ファイル `docs/flow/<ticket-id>/main.md`
 
 このファイルを run の単一の真実とする。各フェーズが自分のセクションを書き、`Status` を更新する。
-下記テンプレートから生成する（見出し・セクション本文は**英語**）：
+下記テンプレートから生成する。**セクション本文はドキュメント言語（既定は日本語）で書く。** 見出し・表のフィールド名・`Status` の値は英語のまま変えない（フェーズ名と対応し、このスキルが参照・再開に使う固定キーのため）：
 
 ```markdown
 # Flow: <ticket-id>
@@ -175,7 +206,7 @@ allowed-tools: Read, Glob, Grep
 <!-- Phase 4: commits made and notable decisions during implementation -->
 
 ## Review
-<!-- Phase 5: divergences vs Approach / Plan / ticket, or "No divergences" -->
+<!-- Phase 5: divergences vs Approach / Plan / ticket, recorded as rounds -->
 
 ## PR
 <!-- Phase 6: title, target branch, URL, review outcome -->
@@ -213,7 +244,7 @@ allowed-tools: Read, Glob, Grep
 
 1. Research をもとに実装方針を決める：検討した選択肢、採用案、主要な設計判断とトレードオフ。
 2. ユーザーに提示して確認し、フィードバックで調整する。
-3. 合意した方針を `## Approach`（英語）に書く。
+3. 合意した方針を `## Approach` に書く。
 4. `Status: approach:awaiting-approval` にして要約を出し、停止。
 
 ## Phase 3 — Plan
@@ -236,7 +267,7 @@ allowed-tools: Read, Glob, Grep
 4. 承認された計画どおりに進められないと分かったら（ある commit を大きく変える必要がある、方針が誤っていた等）、停止して提起する。これは小さな確認ではなく本当の判断事項。
 5. 計画した commit を全て終えたら `Status: implement:awaiting-approval` にして、作ったものを要約し、停止。
 
-**Review からの差し戻しで戻ってきた場合**（Phase 5 で「修正」と決まった乖離がある）：直すのは `## Review` の最新ラウンドで「修正」とされた項目だけにする。それ以外に手を広げない。修正の commit は `## Implementation Log` に「Review round N fixes」として記録する。終わったら Implement のゲートは挟まずに `Status: review:in-progress` にして Review へ戻る（直後に Review のゲートがあるため）。
+**Review からの差し戻しで戻ってきた場合**（Phase 5 で「修正」と決まった乖離がある）：直すのは `## Review` の最新ラウンドで「修正」とされた項目だけにする。それ以外に手を広げない。修正の commit は `## Implementation Log` に「Review Round N の修正」として記録する。終わったら Implement のゲートは挟まずに `Status: review:in-progress` にして Review へ戻る（直後に Review のゲートがあるため）。
 
 ## Phase 5 — Review（乖離チェック）
 
@@ -245,7 +276,7 @@ allowed-tools: Read, Glob, Grep
 1. 実装した変更（例：`git diff <base>...HEAD`）を **Approach / Plan / チケット** と突き合わせる。両方向を見る：
    - 合意と違う実装になっている点
    - 合意・チケットにあるのに未実装の点
-2. 結果を `## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。乖離一覧か "No divergences"。
+2. 結果を `## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。乖離一覧か「乖離なし」。
 3. 乖離があれば、項目ごとに対処をユーザーに選んでもらう（勝手に決めない。こちらの推奨があれば理由付きで示す）：
    - **修正** — 実装が合意と違う／未実装。Implement に戻って直す。
    - **方針の見直し** — Approach 自体が誤っていた。Approach に戻る。

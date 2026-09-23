@@ -25,7 +25,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 ## 使い方
 
 ```
-/flow init                # プロジェクト初期化：docs 雛形 + context の下書き（最初に 1 回）
+/flow init                # プロジェクト初期化：docs 雛形 + context 作成（対話 or 自分で書く）（最初に 1 回）
 /flow new <ticket-id>     # チケット作成：docs/tickets/<ticket-id>.md を対話で作る
 /flow dev <ticket-id>     # 6 フェーズで実装から PR まで進める
 /flow                     # 再開 / dev / new / init を選択肢で表示（進行中の run が無ければ再開は出ない）
@@ -49,7 +49,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 
 上記パスは固定規約。`/flow init` はこの規約どおりの雛形を作るだけで、パスやソースの選択はしない。
 
-チケット本文と `docs/context/**` は `docs/flow.config.yml` の `language` で書く。既定は日本語で、`/flow init` のときに日本語／English／その他から選ぶ。flow 状態（`main.md`）は英語。
+チケット本文と `docs/context/**` は `docs/flow.config.yml` の `language` で書く。既定は日本語で、`/flow init` のときに日本語／English／その他から選ぶ。flow 状態（`main.md`）の本文も同じ言語で書く（見出し・`Status` の値は英語の固定キー）。
 
 `docs/flow/` は `.gitignore` に入れて git 管理しない（`/flow init` が追加する）。flow 状態は個人の作業記録であり、PR に含めるとレビュアーが検討過程に引っ張られてしまうため。
 
@@ -72,7 +72,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 
 ## 状態ファイル
 
-`docs/flow/<ticket-id>/main.md` が run の単一の真実。各フェーズが自分のセクション（英語）を書き、`Status` を更新する。
+`docs/flow/<ticket-id>/main.md` が run の単一の真実。各フェーズが自分のセクション（本文はドキュメント言語）を書き、`Status` を更新する。
 
 `Status` のフォーマットは `<phase>:<state>`：
 
