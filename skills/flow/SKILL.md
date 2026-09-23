@@ -26,9 +26,9 @@ allowed-tools: Read, Glob, Grep
 ### 引数が無い場合（`/flow`）
 
 まず `docs/flow/*/main.md` を Glob して各 `Status` を読み、`done` 以外を進行中の run とする。
-そのうえで、次の 4 つを選択肢としてユーザーに提示し（AskUserQuestion を使う）、選ばれたモードで続ける。推測で決めない。
+そのうえで、次の選択肢をユーザーに提示し（AskUserQuestion を使う）、選ばれたモードで続ける。推測で決めない。
 
-1. **進行中の flow を再開** — 進行中の run のチケット id と Status を説明に含める。無ければ「進行中の flow なし」と書く（選ばれたら dev と同じくチケット id を尋ねる）。
+1. **進行中の flow を再開** — 進行中の run のチケット id と Status を説明に含める。**進行中の run が無ければこの選択肢は出さない**（残りの 3 つだけを提示する）。
 2. **dev：チケットを進める** — チケット id を尋ねる（`docs/tickets/*.md` を候補として示す）。
 3. **new：チケットを作る** — チケット id を尋ねる。
 4. **init：プロジェクトを初期化** — `docs/` が既にあれば、その旨を説明に含める。
@@ -42,9 +42,16 @@ allowed-tools: Read, Glob, Grep
 |------|------|
 | サービス／ドメイン知識 | `docs/context/**`（必要な分だけ読む） |
 | チケット | `docs/tickets/<ticket-id>.md` |
-| flow 状態 | `docs/flow/<ticket-id>/main.md` |
+| flow 設定 | `docs/flow.config.yml`（git 管理する。チーム共通） |
+| flow 状態 | `docs/flow/<ticket-id>/main.md`（**git 管理外**） |
 | ブランチ名 | `<ticket-id>-<slug>`（チケット id を接頭辞にする） |
 
+- **`docs/flow/` は git で管理しない**（`.gitignore` に入れる）。flow 状態は各個人の作業記録であり、共有物ではない。また PR に含めるとレビュアーが検討過程に引っ張られ、実装そのものを見たレビューにならないため。`main.md` を commit・PR に含めない。
+- **ドキュメント言語**：チケット本文と `docs/context/**` は `docs/flow.config.yml` の `language` で書く。既定は日本語（`ja`）。設定ファイルが無ければ日本語とする。チケットの見出しもこの言語にする。
+  ```yaml
+  # /flow settings (shared, committed)
+  language: ja   # ja | en | その他の言語名
+  ```
 - 上記パスは固定規約。`init` はこの規約どおりの雛形を作るだけで、パスやソースの選択はしない（ソース選択は v2 送り）。
 - 状態はあえて**フォルダ形式**（`docs/flow/<ticket-id>/main.md`）にしている。v2 の複数ブランチ対応で兄弟ファイル `docs/flow/<ticket-id>/<subticket>.md` を足すため。v1 では兄弟ファイルを作らない。
 - チケット id にファイルパスや git ブランチ名に使えない文字（空白、`/`、`#`、`~`、`^`、`:` など）が含まれる場合は、勝手に書き換えず、停止してユーザーにどうするか尋ねる。
@@ -56,7 +63,7 @@ allowed-tools: Read, Glob, Grep
 - 仮定を置いて進めるときは**その仮定を明示**し、ユーザーが直せるようにする（該当セクションにも記録する）。
 - 不要な手順や成果物だと感じたら、黙ってやらず（黙って省きもせず）**指摘する**。
 - 懸念や反対は**理由付きで率直に**言う。ユーザーが提案したというだけで同意しない。
-- ユーザーには相手の言語で話す。`main.md` のセクション本文は英語で書く。
+- ユーザーには相手の言語で話す。チケット・context はドキュメント言語（共通規約）で書く。`main.md` のセクション本文は英語で書く。
 
 ## ガードレール
 
@@ -70,18 +77,20 @@ allowed-tools: Read, Glob, Grep
 
 目的：このプロジェクトで `/flow` を使える状態にする。プロジェクトにつき最初に 1 回だけ実行する想定。チケット id は取らない（渡されたら無視せず、`/flow new <ticket-id>` の案内をする）。
 
-1. 現状を確認する：`docs/context/`・`docs/tickets/`・`docs/flow/` の有無と中身、git リポジトリかどうか。
-2. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
-   - `docs/context/`（下書きは手順 3）
+1. 現状を確認する：`docs/context/`・`docs/tickets/`・`docs/flow/` の有無と中身、git リポジトリかどうか、`docs/flow/` が無視されているか（`git check-ignore -q docs/flow/x`）。
+2. **ドキュメント言語を決める**（`docs/flow.config.yml` が既にあればその値を使い、尋ねない）：AskUserQuestion で「日本語（推奨・既定）」「English」を選択肢にして尋ねる（その他はユーザーが自由入力できる）。以降のチケットと `docs/context/**` はこの言語で書く。
+3. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
+   - `docs/context/`（下書きは手順 4）
    - `docs/tickets/.gitkeep`
-   - `docs/flow/.gitkeep`
-3. **context の下書き**：コードベース（README、パッケージ定義、ディレクトリ構成、主要なエントリポイントなど）を読み、`docs/context/overview.md` に下書きを書く。
+   - `docs/flow.config.yml` — 手順 2 で決めた `language` を書く。
+   - `.gitignore` に `docs/flow/` を追加（既に無視されていれば何もしない。`.gitignore` が無ければ作る）。`docs/flow/` 自体は dev が必要になったときに作るので、ここでは作らない。
+4. **context の下書き**：コードベース（README、パッケージ定義、ディレクトリ構成、主要なエントリポイントなど）を読み、`docs/context/overview.md` に下書きを書く。
    - 内容の目安：サービスの目的、主要なドメイン概念、アーキテクチャ／ディレクトリ構成、技術スタック、開発・テストの実行方法。
    - コードから読み取れた事実と、推測を分ける。推測には `(assumption)` を付け、分からないことは `Open questions` に挙げる。
    - `docs/context/` に既にファイルがある場合は新規作成せず、足りない点を提案するにとどめる。
-   - 本文は英語で書く（`main.md` と揃える）。
-4. 作ったものを要約し、`docs/context/overview.md` をユーザーに確認・修正してもらうよう促す。未解決の疑問点があれば質問する。
-5. 次の一手として `/flow new <ticket-id>` を案内する。commit はしない（ユーザーが頼んだ場合を除く）。
+   - 本文は手順 2 で決めたドキュメント言語で書く（見出しも同じ言語でよい）。
+5. 作ったものを要約し、`docs/context/overview.md` をユーザーに確認・修正してもらうよう促す。未解決の疑問点があれば質問する。
+6. 次の一手として `/flow new <ticket-id>` を案内する。commit はしない（ユーザーが頼んだ場合を除く）。
 
 ---
 
@@ -92,32 +101,33 @@ allowed-tools: Read, Glob, Grep
 1. チケット id が無ければ尋ねる。
 2. `docs/tickets/<ticket-id>.md` が既にある場合は上書きしない。内容を示し、編集するか `/flow dev <ticket-id>` に進むかを尋ねる。
 3. `docs/` が無い（init 未実行の）場合は、その旨を伝えて `/flow init` を提案する。ユーザーがこのまま進めると言えば `docs/tickets/` だけ作って続ける。
-4. 何を作りたいか・なぜ必要かをユーザーに尋ね、下記テンプレートの各項目を対話で埋める。
+4. ドキュメント言語を `docs/flow.config.yml` の `language` から読む（無ければ日本語）。
+5. 何を作りたいか・なぜ必要かをユーザーに尋ね、下記テンプレートの各項目を対話で埋める。テンプレート内の HTML コメント（記入ガイド）は完成したチケットには残さない。
    - **要件を捏造しない。** ユーザーが言っていないことは書かない。こちらの提案は提案として示し、合意したものだけ書く。
-   - 決まらない点は削らず `Open Questions` に残す。
+   - 決まらない点は削らず「未決事項」に残す。
    - 必要なら `docs/context/**` やコードを読んで、質問を具体的にする。
-5. 下書きを提示し、合意したらファイルに書く。
-6. 次の一手として `/flow dev <ticket-id>` を案内する。状態ファイル（`docs/flow/...`）は作らない（dev の役目）。
+6. 下書きを提示し、合意したらファイルに書く。
+7. 次の一手として `/flow dev <ticket-id>` を案内する。状態ファイル（`docs/flow/...`）は作らない（dev の役目）。
 
-チケットのテンプレート（見出しは英語、本文はユーザーの言語でよい）：
+チケットのテンプレート（日本語版。ドキュメント言語が日本語以外なら、見出しとコメントをその言語に訳して使う。該当しない項目も削らず「なし」と書く）：
 
 ```markdown
-# <ticket-id>: <title>
+# <ticket-id>: <タイトル>
 
-## Background
-<!-- why this is needed -->
+## 背景
+<!-- なぜ必要か。解決したい問題や動機、誰が影響を受けるか。 -->
 
-## Requirements
-<!-- what must be done -->
+## 要件
+<!-- 何をするか。1 項目 1 行の箇条書きで、実装方法ではなく振る舞いを書く。 -->
 
-## Acceptance Criteria
-<!-- how we know it's done -->
+## 受け入れ条件
+<!-- 何を満たせば完了か。各項目を「- [ ]」で、できた／できていないで判定できる形で書く。 -->
 
-## Out of Scope
-<!-- what this ticket explicitly does not cover -->
+## 対象外
+<!-- このチケットでは扱わないこと。 -->
 
-## Open Questions
-<!-- undecided points; resolved during /flow dev Research -->
+## 未決事項
+<!-- まだ決まっていないこと。/flow dev の Research で解消する。 -->
 ```
 
 ---
@@ -132,9 +142,10 @@ allowed-tools: Read, Glob, Grep
 1. **チケット id が無い**場合：尋ねる。進行中の run がちょうど 1 つなら、その再開を提案する（チケット id と Status を示す）。推測で決めない。
 2. **状態ファイル `docs/flow/<ticket-id>/main.md` が存在する**場合：読んで `Status` から再開する。
    - `<phase>:awaiting-approval` → そのフェーズの要約とゲートを再提示し、停止して待つ。
-   - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。
+   - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。`pr:in-progress` の場合は、先にそのブランチの PR が既に存在しないか確認する（Phase 6 手順 1）。
+   - `pr:awaiting-review` → PR のレビュー状況を確認する（Phase 6 手順 5）。
    - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない。
-3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止）。あれば下記テンプレートから `Status: research:in-progress` で作成し、Phase 1 を開始する。
+3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し、Phase 1 を開始する。
 
 ## 状態ファイル `docs/flow/<ticket-id>/main.md`
 
@@ -167,12 +178,12 @@ allowed-tools: Read, Glob, Grep
 <!-- Phase 5: divergences vs Approach / Plan / ticket, or "No divergences" -->
 
 ## PR
-<!-- Phase 6: title, target branch, URL -->
+<!-- Phase 6: title, target branch, URL, review outcome -->
 ```
 
 **Status のフォーマット：** `<phase>:<state>`
 - `<phase>`：`research | approach | plan | implement | review | pr`、および終端の `done`（`done` には state を付けない）。
-- `<state>`：`in-progress`（作業中）か `awaiting-approval`（フェーズ完了・ゲートで停止し承認待ち）。
+- `<state>`：`in-progress`（作業中）か `awaiting-approval`（フェーズ完了・ゲートで停止し承認待ち）。`pr` フェーズのみ、これに加えて `awaiting-review`（PR を出してレビュアーの Approve 待ち）を使う。
 - フェーズのセクションを書くときは、**同じ編集で**必ず `Status` と `Updated` も更新する。セクションと Status をずらさない。
 - `Updated` はローカル時刻の `YYYY-MM-DD HH:MM`（`date '+%Y-%m-%d %H:%M'` で取得）。
 - 承認を受けて次フェーズへ進むときは、作業を始める前に `Status` を `<次のphase>:in-progress` にする。
@@ -182,7 +193,7 @@ allowed-tools: Read, Glob, Grep
 - **全フェーズの境界で停止する。** フェーズ完了時：セクションを書く → `Status` を `<phase>:awaiting-approval` にする → ユーザーに短い要約を出す → **止まる**。ユーザーの「続けて」等で次へ進む。この停止点が、後から `/flow dev <ticket-id>` で再開する地点になる。
 - **フェーズ内では小刻みに止めない。** 特に Implement は commit ごとに確認しない（commit 分割は Plan で承認済みのため）。
 - ゲートで承認ではなくフィードバックが来たら：現フェーズを修正し、セクションを書き直し、同じゲートを再提示する。
-- **PR だけは必ず止まる強ゲート**（Phase 6 参照）。前段のゲートを連打で飛ばしてきても、push / PR 作成の前に必ず一度停止する。
+- **PR だけは必ず止まる強ゲート**（Phase 6 参照）。前段のゲートを連打で飛ばしてきても、push / PR 作成の前に必ず一度停止する。PR 作成後はレビュアーの Approve まで `pr:awaiting-review` で待ち、Approve されて初めて `done` になる。
 
 ---
 
@@ -213,16 +224,19 @@ allowed-tools: Read, Glob, Grep
 2. **v1 は単一ブランチ。** 1 ブランチに収まらないなら、それはサブチケットに分割すべき＝ v2 の機能。v1 では**ユーザーに指摘して**一緒にチケットを絞る。自動分割やサブチケット自動生成はしない。
 3. ブランチと commit 一覧を `## Plan` に書き、ヘッダ表の `Branch` も埋める。
 4. `Status: plan:awaiting-approval` にして要約を出し、停止。
-5. 承認されたら：リポジトリの状態を確認する（git リポジトリであること。このチケットと無関係な未コミット変更があれば警告する）。ブランチを作成／切り替え、`Status: implement:in-progress` にして Implement へ進む。
+5. 承認されたら、**他の作業より先に** `Status: implement:in-progress` にして Implement へ進む（ブランチ作成は Implement の手順 1 で行う。承認後・Status 更新前に作業すると、中断時に Plan のゲートが再提示されてしまうため）。
 
 ## Phase 4 — Implement
 
 目的：承認済みの方針と計画に沿って実装する。
 
-1. 承認済みブランチ上で、承認済みの commit 分割に従って実装・commit する。commit ごとの承認では止めない。
-2. commit を積むごとに `## Implementation Log`（commit hash とメッセージ、実装中の重要な判断）と `Updated` を更新する。
-3. 承認された計画どおりに進められないと分かったら（ある commit を大きく変える必要がある、方針が誤っていた等）、停止して提起する。これは小さな確認ではなく本当の判断事項。
-4. 計画した commit を全て終えたら `Status: implement:awaiting-approval` にして、作ったものを要約し、停止。
+1. **ブランチの準備**：リポジトリの状態を確認する（git リポジトリであること。このチケットと無関係な未コミット変更があれば警告する）。承認済みブランチが無ければ作成し、既にあれば切り替えるだけにする（中断からの再開で作成済みのことがある）。既に目的のブランチ上なら何もしない。
+2. 承認済みブランチ上で、承認済みの commit 分割に従って実装・commit する。commit ごとの承認では止めない。
+3. commit を積むごとに `## Implementation Log`（commit hash とメッセージ、実装中の重要な判断）と `Updated` を更新する。
+4. 承認された計画どおりに進められないと分かったら（ある commit を大きく変える必要がある、方針が誤っていた等）、停止して提起する。これは小さな確認ではなく本当の判断事項。
+5. 計画した commit を全て終えたら `Status: implement:awaiting-approval` にして、作ったものを要約し、停止。
+
+**Review からの差し戻しで戻ってきた場合**（Phase 5 で「修正」と決まった乖離がある）：直すのは `## Review` の最新ラウンドで「修正」とされた項目だけにする。それ以外に手を広げない。修正の commit は `## Implementation Log` に「Review round N fixes」として記録する。終わったら Implement のゲートは挟まずに `Status: review:in-progress` にして Review へ戻る（直後に Review のゲートがあるため）。
 
 ## Phase 5 — Review（乖離チェック）
 
@@ -231,18 +245,30 @@ allowed-tools: Read, Glob, Grep
 1. 実装した変更（例：`git diff <base>...HEAD`）を **Approach / Plan / チケット** と突き合わせる。両方向を見る：
    - 合意と違う実装になっている点
    - 合意・チケットにあるのに未実装の点
-2. 結果を `## Review` に書く。乖離一覧（各対処付き）か "No divergences"。
-3. 対処が必要なら提示する。必要なら Implement（以前）に戻って Status もそれに合わせ、その後 Review に戻ってくる。
-4. `Status: review:awaiting-approval` にして要約を出し、停止。
+2. 結果を `## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。乖離一覧か "No divergences"。
+3. 乖離があれば、項目ごとに対処をユーザーに選んでもらう（勝手に決めない。こちらの推奨があれば理由付きで示す）：
+   - **修正** — 実装が合意と違う／未実装。Implement に戻って直す。
+   - **方針の見直し** — Approach 自体が誤っていた。Approach に戻る。
+   - **受け入れ** — 実装のほうが妥当。直さず、理由をその項目に記録する。
+4. 決まった対処を各項目に記録し、次のとおり進む：
+   - 「方針の見直し」が 1 つでもある → `Status: approach:in-progress` にして Phase 2 へ。以降の Plan・Implement・Review も通常どおりゲートを通り直す（既存のセクションは消さずに更新する）。
+   - 「修正」がある（方針の見直しは無い） → `Status: implement:in-progress` にして Implement へ（Phase 4 の「Review からの差し戻し」）。修正後に Review へ戻り、次のラウンドを行う。
+   - 乖離なし、または全て「受け入れ」 → `Status: review:awaiting-approval` にして要約を出し、停止。
 
 ## Phase 6 — PR（強ゲート）
 
-目的：明示的な確認の後にだけ PR を出す。
+目的：明示的な確認の後にだけ PR を出し、レビュアーの Approve まで見届ける。
 
-1. `Status: pr:in-progress` にする。PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ユーザーの指定が無ければリモートのデフォルトブランチ）・**PR タイトル**・変更概要（PR 本文の下書き）。
+1. `Status: pr:in-progress` にする。まず、そのブランチの PR が既に存在しないか確認する（`gh pr list --head <branch> --state all`）。中断からの再開で既に作成済みなら、新しく作らずに URL を `## PR` に記録し、`Status: pr:awaiting-review` にして手順 5 へ進む。
+   無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ユーザーの指定が無ければリモートのデフォルトブランチ）・**PR タイトル**・変更概要（PR 本文の下書き）。
 2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** このゲートは前段を飛ばしてきても必ず発生する。勝手に push / PR しない。
 3. 確認されたら push して PR を作成する（例：`gh pr create`）。
-4. PR タイトル・向き先・URL を `## PR` に書き、`Status: done` にして URL を報告する。
+4. PR タイトル・向き先・URL を `## PR` に書き、`Status: pr:awaiting-review` にして URL を報告し、停止する。**この時点では `done` にしない。** レビューは人が行うので、flow は待つだけ。ユーザーには、レビューが進んだら `/flow dev <ticket-id>` で再開するよう案内する。
+5. **レビュー状況の確認**（`pr:awaiting-review` から再開したとき）：`gh pr view <url> --json state,reviewDecision,reviews` で状況を確認する。
+   - **Approve 済み**（`reviewDecision` が `APPROVED`。レビュー必須でないリポジトリでは `reviews` に `APPROVED` がある）、またはマージ済み → `## PR` に結果を追記し、`Status: done` にする。
+   - **修正依頼あり**（`CHANGES_REQUESTED` やコメント）→ 指摘を要約して提示し、`Status: pr:in-progress` にして対応する。修正はブランチに commit し、`## Implementation Log` に「PR レビュー対応」として記録する。push の前に変更内容を提示して**停止し、確認を得てから push する**。push したら `Status: pr:awaiting-review` に戻して停止する。
+   - **まだレビューされていない** → その旨を伝え、`pr:awaiting-review` のまま停止する。
+   - **マージされずにクローズされた** → 報告し、どうするか尋ねる。勝手に `done` にしない。
 
 ---
 

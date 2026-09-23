@@ -28,7 +28,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 /flow init                # プロジェクト初期化：docs 雛形 + context の下書き（最初に 1 回）
 /flow new <ticket-id>     # チケット作成：docs/tickets/<ticket-id>.md を対話で作る
 /flow dev <ticket-id>     # 6 フェーズで実装から PR まで進める
-/flow                     # 再開 / dev / new / init を選択肢で表示
+/flow                     # 再開 / dev / new / init を選択肢で表示（進行中の run が無ければ再開は出ない）
 ```
 
 - 明示起動専用（`disable-model-invocation: true`）。Claude が勝手に発火させることはない。
@@ -43,10 +43,15 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 |------|------|
 | サービス／ドメイン知識 | `docs/context/**` |
 | チケット | `docs/tickets/<ticket-id>.md` |
-| flow 状態 | `docs/flow/<ticket-id>/main.md` |
+| flow 設定 | `docs/flow.config.yml`（git 管理） |
+| flow 状態 | `docs/flow/<ticket-id>/main.md`（git 管理外） |
 | ブランチ名 | `<ticket-id>-<slug>` |
 
 上記パスは固定規約。`/flow init` はこの規約どおりの雛形を作るだけで、パスやソースの選択はしない。
+
+チケット本文と `docs/context/**` は `docs/flow.config.yml` の `language` で書く。既定は日本語で、`/flow init` のときに日本語／English／その他から選ぶ。flow 状態（`main.md`）は英語。
+
+`docs/flow/` は `.gitignore` に入れて git 管理しない（`/flow init` が追加する）。flow 状態は個人の作業記録であり、PR に含めるとレビュアーが検討過程に引っ張られてしまうため。
 
 ## フェーズ
 
@@ -56,13 +61,14 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 | 2 | Approach | 実装方針（選択肢・採用案・トレードオフ）を決めて合意する |
 | 3 | Plan | ブランチ名と順序付きの commit 分割を決める（v1 は単一ブランチ） |
 | 4 | Implement | 計画どおりに実装・commit する（commit ごとには止まらない） |
-| 5 | Review | 実装と Approach / Plan / チケットの乖離を両方向でチェックする |
-| 6 | PR | 明示的な確認の後にだけ push して PR を作成する |
+| 5 | Review | 実装と Approach / Plan / チケットの乖離を両方向でチェックし、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れを選ぶ |
+| 6 | PR | 明示的な確認の後にだけ push して PR を作成し、Approve まで待つ |
 
 ### 承認ゲート
 
 - 全フェーズの境界で停止し、要約を出して承認を待つ。この停止点が再開点になる。
 - PR の前は、前段のゲートを飛ばしてきても必ず停止する（強ゲート）。
+- PR 作成後は `pr:awaiting-review` で止まる。`/flow dev <ticket-id>` で再開するとレビュー状況を確認し、Approve されていれば `done`、修正依頼があれば対応する（push 前に確認あり）。
 
 ## 状態ファイル
 
@@ -71,7 +77,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 `Status` のフォーマットは `<phase>:<state>`：
 
 - `<phase>`：`research | approach | plan | implement | review | pr`、終端は `done`
-- `<state>`：`in-progress`（作業中）／`awaiting-approval`（ゲートで承認待ち）
+- `<state>`：`in-progress`（作業中）／`awaiting-approval`（ゲートで承認待ち）／`awaiting-review`（`pr` のみ。PR の Approve 待ち）
 
 ## 注意
 
