@@ -1,0 +1,32 @@
+name: discord-merge-notify
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  notify:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TITLE: ${{ github.event.pull_request.title }}
+          URL: ${{ github.event.pull_request.html_url }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          MERGER: ${{ github.event.pull_request.merged_by.login }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          jq -n --arg t "$TITLE" --arg u "$URL" --arg a "$AUTHOR" --arg m "$MERGER" --arg b "$BASE" '{
+            username: "マージ通知",
+            embeds: [{
+              title: ("🎉 flow commandがマージされました: " + $t),
+              url: $u,
+              color: 8311585,
+              fields: [
+                {name: "作成者", value: $a, inline: true},
+                {name: "マージ先", value: $b, inline: true}
+              ]
+            }]
+          }' | curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$WEBHOOK"
