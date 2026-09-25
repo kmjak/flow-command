@@ -118,7 +118,27 @@ commands:
 
 ## hook による強制
 
-`/flow` を起動すると、SKILL.md のフロントマターに書いた PreToolUse hook（`skills/flow/scripts/guard.sh`）がそのセッションの Bash に掛かる。追加の導入手順は無い（スキルの symlink だけで有効になる）。flow のブランチ（`docs/flow/*/main.md` の `Branch` と一致するブランチ）でだけ判定し、それ以外のコマンド・ブランチは素通しする。
+`skills/flow/scripts/guard.sh` を PreToolUse hook として **`~/.claude/settings.json` に登録**すると、push・PR のゲートが指示ではなく仕組みで守られる。settings.json に登録するので、`/flow` を起動していないセッションや `--resume` で再開したセッションでも効く。flow のブランチ（`docs/flow/*/main.md` の `Branch` と一致するブランチ）でだけ判定し、それ以外のコマンド・ブランチは素通しする。
+
+登録は `/flow init` が案内する。個人設定なので、「自分で追記する」（Claude は settings.json を読まない）か「AI に任せる」（差分を見せて確認を取ってから、バックアップを取って追記する）かを選べる。手で追記する場合は、`hooks.PreToolUse` の配列に次の要素を足す（`hooks` が無ければ作る）。反映は次に起動するセッションから。
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$HOME/.claude/skills/flow/scripts/guard.sh\"; [ -f \"$f\" ] || f=\"$CLAUDE_PROJECT_DIR/.claude/skills/flow/scripts/guard.sh\"; exec bash \"$f\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 | ブロックするもの | 条件 |
 |------------------|------|
@@ -130,6 +150,7 @@ commands:
 - 要 `jq`。無い場合は push / PR 作成だけを止めて、インストールを促す。
 - 止めるのは Claude のツール呼び出しだけで、ユーザーが自分で実行する git / gh は止めない。
 - コマンド文字列からの判定なので、完全な防御ではない（スクリプト経由の push などは検出できない）。
+- 登録しない場合、ゲートは SKILL.md の指示だけで守られる。
 
 ## 注意
 

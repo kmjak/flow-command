@@ -80,8 +80,29 @@
 
    対話で作った場合、完成したファイルには記入ガイドのコメントを残さない。自分で作る場合はコメントを残す（書くときのガイドになるため）。
 8. **reviewer agent を確認する**：利用できる agent に `flow-reviewer`（dev の Review で使う）が無ければ、README の導入手順を案内する（init を止める必要はない。dev の Review までに導入すればよい）。
-9. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
-10. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する（push はしない）。
+9. **guard hook を登録する**：`scripts/guard.sh`（ゲート前の push・PR 作成、`Closes` の無い PR、force push を止める hook）は、ユーザー設定 `~/.claude/settings.json` に登録して初めて有効になる。ユーザーの個人設定なので、**ユーザーが選ぶまで `~/.claude/settings.json` を読まない・書かない。** AskUserQuestion で次から選んでもらう：
+   - **登録済み** — 何もしない。
+   - **自分で追記する** — 下記の JSON と追記先（`~/.claude/settings.json` の `hooks.PreToolUse`。既に `hooks` があれば、その `PreToolUse` 配列に要素を 1 つ足す）を示すだけにする。ファイルは読まない。
+   - **AI に任せる** — `~/.claude/settings.json` を読み、既に `guard.sh` が登録されていれば何もしない。無ければ、既存の設定を一切変えずに要素を 1 つ足した結果（差分）を示し、確認を得てから書く。書く前に `~/.claude/settings.json.bak` にバックアップを取る。ファイルが無ければ新しく作る。JSON は手で書き換えず `jq` で組み立て、書いた後に `jq empty` で壊れていないことを確かめる。
+   - 後回しにする — 登録しないと push・PR のゲートは指示だけで守られる（再開したセッションなどで破られうる）ことを伝える。
+
+   どれを選んでも、登録は**次に起動するセッションから**有効になることを伝える。
+
+   追記する要素：
+
+   ```json
+   {
+     "matcher": "Bash",
+     "hooks": [
+       {
+         "type": "command",
+         "command": "f=\"$HOME/.claude/skills/flow/scripts/guard.sh\"; [ -f \"$f\" ] || f=\"$CLAUDE_PROJECT_DIR/.claude/skills/flow/scripts/guard.sh\"; exec bash \"$f\""
+       }
+     ]
+   }
+   ```
+10. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
+11. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する（push はしない）。
    - 自分で作る場合は、ユーザーが `overview.md` を書き終えてから commit するか、雛形のまま今 commit するかを尋ねる。
    - init が作ったもの以外の変更は commit に含めない。
-11. 次の一手として `/flow new` を案内する。
+12. 次の一手として `/flow new` を案内する。
