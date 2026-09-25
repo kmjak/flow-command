@@ -52,8 +52,9 @@
    ```
 
    対話で作った場合、完成したファイルには記入ガイドのコメントを残さない。自分で作る場合はコメントを残す（書くときのガイドになるため）。
-6. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
-7. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージを提示し、確認を得てから commit する（push はしない）。
+6. **reviewer agent を確認する**：利用できる agent に `flow-reviewer`（dev の Review で使う）が無ければ、README の導入手順を案内する（init を止める必要はない。dev の Review までに導入すればよい）。
+7. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
+8. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージを提示し、確認を得てから commit する（push はしない）。
    - 自分で作る場合は、ユーザーが `overview.md` を書き終えてから commit するか、雛形のまま今 commit するかを尋ねる。
    - init が作ったもの以外の変更は commit に含めない。
-8. 次の一手として `/flow new <ticket-id>` を案内する。
+9. 次の一手として `/flow new <ticket-id>` を案内する。

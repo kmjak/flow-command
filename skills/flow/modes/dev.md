@@ -44,7 +44,7 @@
 <!-- Phase 4: commits made and notable decisions during implementation -->
 
 ## Review
-<!-- Phase 5: divergences vs Approach / Plan / ticket, recorded as rounds -->
+<!-- Phase 5: reviewer findings vs Approach / Plan / ticket, with recommendations and decisions, recorded as rounds -->
 
 ## PR
 <!-- Phase 6: title, target branch, URL, review outcome -->
@@ -123,21 +123,51 @@
 
 ## Phase 5 — Review（乖離チェック）
 
-目的：作ったものと意図のズレを検出する。
+目的：作ったものと意図のズレを検出する。実装した本人（このセッション）は自分の判断に引きずられるため、**乖離の検出は reviewer agent（`flow-reviewer`）に任せ**、このセッションは各指摘に推奨を添えるだけにする。判断はユーザーが行う。
 
-1. **検証**（Phase 4 の「検証」）の結果を用意する。`Implementation Log` の最新の検証が現在の HEAD に対するもので全て pass ならそれを使い、そうでなければ実行し直す。失敗があれば Review に進まず、`Status: implement:in-progress` に戻して Phase 4 の検証の手順で扱う。
-2. 実装した変更（`git diff <Base>...HEAD`。`Base` はヘッダ表の値）を **Approach / Plan / チケット** と突き合わせる。両方向を見る：
-   - 合意と違う実装になっている点
-   - 合意・チケットにあるのに未実装の点
-3. 結果を `## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。乖離一覧か「乖離なし」。
-4. 乖離があれば、項目ごとに対処をユーザーに選んでもらう（勝手に決めない。こちらの推奨があれば理由付きで示す）：
-   - **修正** — 実装が合意と違う／未実装。Implement に戻って直す。
+1. **reviewer agent の確認**：利用できる agent に `flow-reviewer` があることを確認する。無ければ停止し、README の導入手順（`agents/flow-reviewer.md` を `~/.claude/agents/` に symlink するか、プロジェクトの `.claude/agents/` にコピーする）を案内する。**general-purpose など別の agent で代用しない**（レビューの基準が変わるため）。
+2. **検証**（Phase 4 の「検証」）の結果を用意する。`Implementation Log` の最新の検証が現在の HEAD に対するもので全て pass ならそれを使い、そうでなければ実行し直す。失敗があれば Review に進まず、`Status: implement:in-progress` に戻して Phase 4 の検証の手順で扱う。
+3. **reviewer を起動する**：`flow-reviewer` をラウンドごとに新しく起動する（前のラウンドの agent を使い回さない）。渡すのは次のものだけにする：
+   - チケットのパス（`docs/tickets/<ticket-id>.md`）
+   - `Base` と、比較範囲 `<Base>...HEAD`
+   - `## Approach` と `## Plan` の本文（そのまま貼る）
+   - 検証の結果
+   - 前のラウンドまでに「受け入れ」と決まった乖離とその理由（同じ指摘を繰り返させないため）
+   - ドキュメント言語
+
+   **`## Research`・`## Implementation Log`・実装中の経緯は渡さない**（実装者の意図に引きずられず、合意と成果物だけで判定させるため）。`docs/flow/` 配下のパスも渡さない。
+4. **結果を記録する**：`## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。各ラウンドには、検証結果と、reviewer の指摘を**全件そのまま**載せる（指摘が無ければ「乖離なし」）。
+   - **reviewer の指摘を削除・統合・言い換え・並べ替えしない。** 誤検知だと思っても消さず、推奨欄でそう述べる。
+   - 各指摘の下に、このセッションの**推奨**（修正／方針の見直し／受け入れ）と**根拠**を添える。根拠には `## Implementation Log` の判断や実装中の経緯を使ってよい（reviewer が知らない情報を補うのがこのセッションの役割）。
+   - このセッションが別の乖離に気づいた場合は、`（実装者による追加）` と明記して別の項目として追記する。
+5. 乖離があれば、項目ごとに対処をユーザーに選んでもらう（勝手に決めない。推奨は理由付きで示すだけ）：
+   - **修正** — 実装が合意と違う／未実装／合意外の変更を取り除く。Implement に戻って直す。
    - **方針の見直し** — Approach 自体が誤っていた。Approach に戻る。
-   - **受け入れ** — 実装のほうが妥当。直さず、理由をその項目に記録する。
-5. 決まった対処を各項目に記録し、次のとおり進む：
+   - **受け入れ** — 実装のほうが妥当、または誤検知。直さず、理由をその項目に記録する。
+6. 決まった対処を各項目に記録し、次のとおり進む：
    - 「方針の見直し」が 1 つでもある → `Status: approach:in-progress` にして Phase 2 へ。以降の Plan・Implement・Review も通常どおりゲートを通り直す（既存のセクションは消さずに更新する）。
    - 「修正」がある（方針の見直しは無い） → `Status: implement:in-progress` にして Implement へ（Phase 4 の「Review からの差し戻し」）。修正後に Review へ戻り、次のラウンドを行う。
    - 乖離なし、または全て「受け入れ」 → `Status: review:awaiting-approval` にして要約を出し、停止。
+
+`## Review` のラウンドの書き方（本文はドキュメント言語。reviewer の報告をそのまま貼り、`推奨`・`決定` の行だけをこのセッションが足す）：
+
+```markdown
+### Round 1
+Verification @ a1b2c3d: test pass, lint pass
+
+- **R1 [未実装]** 受け入れ条件「…」に対応する処理が無い
+  - 合意側：チケット 受け入れ条件 2
+  - 実装側：該当する変更なし
+  - 確度：高
+  - 推奨：修正 — …
+  - 決定：修正
+- **R2 [合意外の変更]** …
+  - 合意側：…
+  - 実装側：src/foo.ts:42
+  - 確度：中
+  - 推奨：受け入れ — Implementation Log の判断「…」のとおり、…のため
+  - 決定：受け入れ（理由：…）
+```
 
 ## Phase 6 — PR（強ゲート）
 

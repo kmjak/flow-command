@@ -20,7 +20,16 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 
 リンクなので、このリポジトリで `SKILL.md` を編集すればそのまま全プロジェクトに反映される。
 
-特定のプロジェクトだけで使いたい場合は、そのプロジェクトの `.claude/skills/flow/` に `skills/flow/` の中身（`SKILL.md`・`modes/`・`scripts/`）をコピーする。
+dev の Review で使う reviewer agent（`agents/flow-reviewer.md`）も同じようにリンクする。agent はスキルのディレクトリに同梱できないため、別に導入が必要。
+
+```sh
+mkdir -p ~/.claude/agents
+ln -sfn "$(pwd)/agents/flow-reviewer.md" ~/.claude/agents/flow-reviewer.md
+```
+
+未導入のまま Review に入ると、flow は停止して導入を案内する（別の agent で代用はしない）。
+
+特定のプロジェクトだけで使いたい場合は、そのプロジェクトの `.claude/skills/flow/` に `skills/flow/` の中身（`SKILL.md`・`modes/`・`scripts/`）をコピーし、reviewer agent は `.claude/agents/flow-reviewer.md` にコピーする。
 
 ## 使い方
 
@@ -71,7 +80,7 @@ commands:
 | 2 | Approach | 実装方針（選択肢・採用案・トレードオフ）を決めて合意する |
 | 3 | Plan | ブランチ名と順序付きの commit 分割を決める（v1 は単一ブランチ） |
 | 4 | Implement | 計画どおりに実装・commit する（commit ごとには止まらない）。最後に検証コマンドを全て実行し、通るまで直す |
-| 5 | Review | 実装と Approach / Plan / チケットの乖離を両方向でチェックし、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れを選ぶ |
+| 5 | Review | reviewer agent（`flow-reviewer`）が、実装の経緯を知らない状態で実装と Approach / Plan / チケットの乖離（相違・未実装・合意外の変更）を洗い出す。実装したセッションは指摘を消さずに推奨と根拠を添えるだけで、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れをユーザーが選ぶ |
 | 6 | PR | 明示的な確認の後にだけ push して PR を作成し、Approve・CI 成功・コンフリクトなしになるまで見届ける |
 
 ### 承認ゲート
