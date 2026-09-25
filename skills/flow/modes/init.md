@@ -1,6 +1,6 @@
 # init モード — プロジェクト初期化
 
-目的：このプロジェクトで `/flow` を使える状態にする。プロジェクトにつき最初に 1 回だけ実行する想定。チケット id は取らない（渡されたら無視せず、`/flow new <ticket-id>` の案内をする）。
+目的：このプロジェクトで `/flow` を使える状態にする。最初に 1 回実行する想定だが、**何度実行しても安全**にする（済んでいる項目は飛ばし、足りない設定だけを足す）。設定を後から追加・修正したいときも再実行してよい。引数は取らない（チケット id が渡されたら無視せず、`/flow new` の案内をする）。
 
 1. 現状を確認する：`docs/context/`・`docs/tickets/`・`docs/flow/` の有無と中身、git リポジトリかどうか、`docs/flow/` が無視されているか（`git check-ignore -q docs/flow/x`）。
    `docs/flow.config.yml` が既にある場合（再実行や、古い init で作った場合）は読み込み、**値があるキーは尋ねずにそのまま使う**。以降の手順は、値が無いキーについてだけ行い、既存のキーは書き換えない。
@@ -28,13 +28,22 @@
    <!-- Source が空欄なら、ここに規約本文を書く。
         Source があれば、ここには flow 固有の補足だけを書く（Source と矛盾したら Source を優先する）。 -->
    ```
-5. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
-   - `docs/context/`（中身は手順 6。`commit.md` は手順 4）
+5. **チケット管理を決める**（`ticket`）：AskUserQuestion で次から選んでもらう。チームで使うなら GitHub を勧める（id が衝突せず、他の人が状況と担当者を見られるため）。
+   - **GitHub issue と連携する**（`tracker: github`）— new で issue を作り、issue 番号を id にする。issue にはチケットの要件・受け入れ条件・ステータス（ラベル）・担当者だけを載せる（`references/github.md`）。
+   - **ローカルのみ**（`tracker: local`）— 今までどおり。id はローカルの連番。
+
+   `prefix` と `pad` は既定値（`T`・`6`）を書き、変えたければ config を直せばよいことを伝える（既存のチケットがある状態で変えると id の形式が混ざる点も伝える）。
+   `github` の場合は（`ticket` が既に設定済みでも、再実行のたびに）`references/github.md` を Read して次を行う：
+   1. **事前チェック**（`gh` があること・`gh auth status`・`gh repo view`）。`gh` が無ければインストールを、未認証なら `! gh auth login` の実行を案内し、ユーザーが済ませるのを待ってから確認し直す。どうしても済ませられなければ `local` にするか尋ねる。
+   2. **ラベルを作る**：`gh label list` で既存のものを確かめ、無いものだけ（`flow:todo`・`flow:in-progress`・`flow:in-review`）を一覧で示して確認を得てから `gh label create` で作る。
+   3. 既存のチケット（`Issue:` 行の無いもの）は issue を作らずそのまま使えることを伝える（issue 化したい場合の自動移行はしない）。
+6. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
+   - `docs/context/`（中身は手順 7。`commit.md` は手順 4）
    - `docs/context/commit.md`（手順 4 で決めた内容）
    - `docs/tickets/.gitkeep`
-   - `docs/flow.config.yml` — 手順 2・3 で決めた値を書く（既にあれば、足りないキーだけを追記する）。
+   - `docs/flow.config.yml` — 手順 2・3・5 で決めた値を書く（既にあれば、足りないキーだけを追記する）。
    - `.gitignore` に `docs/flow/` を追加（既に無視されていれば何もしない。`.gitignore` が無ければ作る）。`docs/flow/` 自体は dev が必要になったときに作るので、ここでは作らない。
-6. **context を作る**：`docs/context/` に（手順 4 の `commit.md` 以外の）ファイルが既にある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
+7. **context を作る**：`docs/context/` に（手順 4 の `commit.md` 以外の）ファイルが既にある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
    - **対話で作る** — 下記「対話で作る場合」の手順で、各項目の内容をユーザーと一緒に決めて `docs/context/overview.md` を書く。
    - **自分で作る** — 下記テンプレートの見出しと記入ガイドだけを入れた `docs/context/overview.md` を作り、中身はユーザーが書く。こちらからは内容を埋めない。
 
@@ -70,9 +79,9 @@
    ```
 
    対話で作った場合、完成したファイルには記入ガイドのコメントを残さない。自分で作る場合はコメントを残す（書くときのガイドになるため）。
-7. **reviewer agent を確認する**：利用できる agent に `flow-reviewer`（dev の Review で使う）が無ければ、README の導入手順を案内する（init を止める必要はない。dev の Review までに導入すればよい）。
-8. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
-9. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する（push はしない）。
+8. **reviewer agent を確認する**：利用できる agent に `flow-reviewer`（dev の Review で使う）が無ければ、README の導入手順を案内する（init を止める必要はない。dev の Review までに導入すればよい）。
+9. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
+10. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する（push はしない）。
    - 自分で作る場合は、ユーザーが `overview.md` を書き終えてから commit するか、雛形のまま今 commit するかを尋ねる。
    - init が作ったもの以外の変更は commit に含めない。
-10. 次の一手として `/flow new <ticket-id>` を案内する。
+11. 次の一手として `/flow new` を案内する。

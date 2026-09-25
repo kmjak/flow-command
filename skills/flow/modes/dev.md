@@ -5,15 +5,17 @@
 
 ## 起動と再開
 
-新規・再開のどちらでも、まず `docs/flow.config.yml` の `language` を読む（無ければ日本語）。この run の間、`main.md` のセクション本文はこの言語で書く。
+新規・再開のどちらでも、まず `docs/flow.config.yml` の `language` を読む（無ければ日本語）。この run の間、`main.md` のセクション本文はこの言語で書く。同じく `ticket` を読み（無ければ共通規約の既定値）、指定された id を共通規約のとおり正規化する。
+
+**GitHub 連携**（`ticket.tracker: github` で、チケットに `Issue: #<番号>` がある場合）：`references/github.md` の「事前チェック」を行い、issue の本文を同期する。以降、同ファイルの定めに従ってラベル・assignee・PR との紐付け・クローズを行う。`Issue:` 行が無いチケット（`local` の時代に作ったもの等）では issue の操作をしない。
 
 1. **チケット id が無い**場合：尋ねる。進行中の run がちょうど 1 つなら、その再開を提案する（チケット id と Status を示す）。推測で決めない。
 2. **状態ファイル `docs/flow/<ticket-id>/main.md` が存在する**場合：読んで `Status` から再開する。
    - `<phase>:awaiting-approval` → そのフェーズの要約とゲートを再提示し、停止して待つ。
    - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。`pr:in-progress` の場合は、先にそのブランチの PR が既に存在しないか確認する（Phase 6 手順 1）。
    - `pr:awaiting-review` → PR の状況（レビュー・CI・コンフリクト）を確認する（Phase 6 手順 5）。
-   - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない。
-3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し、Phase 1 を開始する。
+   - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない。GitHub 連携で、PR がマージ済みなのに issue が開いたままなら、閉じるか尋ねる。
+3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止。GitHub 連携で issue だけが存在する場合は `references/github.md` の「手元にチケットが無い場合」）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し（ヘッダ表の `Issue` にはチケットの `Issue:` の値を、無ければ `—` を書く）、GitHub 連携なら issue を `flow:in-progress` にして assignee に自分を追加する（他の人が assign されていたら、作成前に停止して尋ねる）。そのうえで Phase 1 を開始する。
 
 ## 状態ファイル `docs/flow/<ticket-id>/main.md`
 
@@ -27,6 +29,7 @@
 |---------|------------------------------------|
 | Status  | research:in-progress               |
 | Ticket  | docs/tickets/<ticket-id>.md        |
+| Issue   | —                                  |
 | Branch  | —                                  |
 | Base    | —                                  |
 | Updated | <YYYY-MM-DD HH:MM>                 |
@@ -70,7 +73,7 @@
 
 目的：どう実装するか決める前に、実装に必要な情報を整理する。
 
-1. `docs/tickets/<ticket-id>.md` を読む。無ければ停止し、`/flow new <ticket-id>` で作るか尋ねる。dev モードの中でチケットの内容を捏造・作成しない。
+1. `docs/tickets/<ticket-id>.md` を読む。無ければ停止し、`/flow new` で作るか尋ねる（id は new で自動的に決まるため、指定された id のままにはならないことも伝える）。dev モードの中でチケットの内容を捏造・作成しない。
 2. `docs/context/**` の関連箇所（必要な分だけ）を読み、必要ならコードベースも見て、ドメイン／サービス知識を集める。
 3. 整理する：チケットの要求、関連コンテキスト、影響しそうなコード領域、制約、未解決の疑問点。
 4. 結果を `## Research` に書く。
@@ -174,12 +177,12 @@ Verification @ a1b2c3d: test pass, lint pass
 目的：明示的な確認の後にだけ PR を出し、レビュアーの Approve まで見届ける。
 
 1. `Status: pr:in-progress` にする。まず、そのブランチの PR が既に存在しないか確認する（`gh pr list --head <branch> --state all`）。中断からの再開で既に作成済みなら、新しく作らずに URL を `## PR` に記録し、`Status: pr:awaiting-review` にして手順 5 へ進む。
-   無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ヘッダ表の `Base`）・**PR タイトル**・変更概要（PR 本文の下書き）。タイトルと本文はドキュメント言語で書く。
+   無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ヘッダ表の `Base`）・**PR タイトル**・変更概要（PR 本文の下書き）。タイトルと本文はドキュメント言語で書く。GitHub 連携なら、本文の末尾に **`Closes #<番号>` を必ず入れ**、作成の直前に issue の本文を同期する。
 2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** このゲートは前段を飛ばしてきても必ず発生する。勝手に push / PR しない。
-3. 確認されたら push して PR を作成する（例：`gh pr create`）。
+3. 確認されたら push して PR を作成する（例：`gh pr create`）。GitHub 連携なら、作成後に issue との紐付けを確かめ（`references/github.md` の「PR との紐付け」）、issue を `flow:in-review` にする。
 4. PR タイトル・向き先・URL を `## PR` に書き、`Status: pr:awaiting-review` にして URL を報告し、停止する。**この時点では `done` にしない。** レビューは人が行うので、flow は待つだけ。ユーザーには、レビューが進んだら `/flow dev <ticket-id>` で再開するよう案内する。
 5. **PR の状況確認**（`pr:awaiting-review` から再開したとき）：このスキルのディレクトリにある `scripts/pr-status.sh <PR URL>` を実行する。1 行目が判定、2 行目以降が詳細。判定ごとに次のとおり進む（`done` にしてよいのは `approved` と `merged` だけ）：
-   - `approved`（Approve 済み・CI 全て成功・コンフリクトなし）または `merged` → `## PR` に結果を追記し、`Status: done` にする。
+   - `approved`（Approve 済み・CI 全て成功・コンフリクトなし）または `merged` → `## PR` に結果を追記し、`Status: done` にする。GitHub 連携なら `references/github.md` の「クローズ」に従う（`merged` なら閉じる。`approved` ではまだ閉じない）。
    - `conflict`（Base とコンフリクト）→ `Status: pr:in-progress` に戻し、`Base` の最新を取り込んで解消する。取り込み方は merge を既定とする（rebase は force push が必要になるため、ユーザーが望んだ場合だけ）。
    - `ci_failing`（CI 失敗）→ `Status: pr:in-progress` に戻し、失敗したチェック（`failing_checks`）のログを確認して（`gh pr checks`・`gh run view --log-failed`）原因を直す。
    - `changes_requested`（修正依頼）→ `Status: pr:in-progress` に戻し、指摘を要約して提示してから対応する。
