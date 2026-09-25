@@ -71,12 +71,11 @@ json_str() {
   printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 }
 
-# decide <dir> <command> [PATH]: prints pass | ask | deny
-decide() {
-  local dir=$1 cmd=$2 path=${3:-$PATH} out code
-  out=$(cd "$dir" && printf '{"tool_name":"Bash","tool_input":{"command":%s},"cwd":%s}' \
-          "$(json_str "$cmd")" "$(json_str "$dir")" \
-        | PATH=$path bash "$guard" 2>/dev/null)
+# verdict_of <dir> <json> [PATH]: prints pass | ask | deny
+verdict_of() {
+  local dir=$1 path=${3:-} out code
+  [ -n "$path" ] || path=$PATH
+  out=$(cd "$dir" && printf '%s' "$2" | PATH=$path bash "$guard" 2>/dev/null)
   code=$?
   if [ $code -eq 2 ]; then echo deny; return; fi
   case "$out" in
@@ -87,11 +86,29 @@ decide() {
   esac
 }
 
+# decide <dir> <command> [PATH]: a Bash call
+decide() {
+  verdict_of "$1" "$(printf '{"tool_name":"Bash","tool_input":{"command":%s},"cwd":%s}' \
+    "$(json_str "$2")" "$(json_str "$1")")" "${3:-}"
+}
+
+# expect_tool <want> <dir> <tool> <tool_input-json>: any other tool
+expect_tool() {
+  local got
+  got=$(verdict_of "$2" "$(printf '{"tool_name":"%s","tool_input":%s,"cwd":%s}' "$3" "$4" "$(json_str "$2")")")
+  if [ "$got" = "$1" ]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  [%s] %s %s\n      want %s, got %s\n' "$state" "$3" "$4" "$1" "$got"
+  fi
+}
+
 pass=0; fail=0
 # expect <want> <dir> <command> [PATH]
 expect() {
   local want=$1 got
-  got=$(decide "$2" "$3" "${4:-$PATH}")
+  got=$(decide "$2" "$3" "${4:-}")
   if [ "$got" = "$want" ]; then
     pass=$((pass + 1))
   else
@@ -120,10 +137,12 @@ expect pass "$plain" 'git push'
 expect pass "$plain" 'gh pr create --fill'
 expect pass "$tmp"   'git push'   # not a git repo
 
-state="flow repo, other branch"
-git -C "$flow" checkout -q main
+state="flow repo, unrelated branch"
+git -C "$flow" checkout -q -b other
 set_state implement:in-progress
 expect pass "$flow" 'git push'
+expect pass "$flow" 'git merge main'
+expect pass "$flow" 'git commit -m x'
 git -C "$flow" checkout -q T000001-login
 
 state="implement:in-progress"
@@ -189,6 +208,76 @@ expect ask  "$flow" 'gh pr "create" --fill'
 expect deny "$flow" 'bash -c "git push --force"'
 expect ask  "$flow" 'echo "run git push later"'   # accepted false positive
 reason_has "$flow" 'bash -c "git push"' '可能性'
+
+# Allow list: git / gh beyond push and PR creation.
+state="implement:in-progress (allow list)"
+set_state implement:in-progress
+expect pass "$flow" 'git log --oneline main..HEAD'
+expect pass "$flow" 'git diff main...HEAD'
+expect pass "$flow" 'git add -A && git commit -m "feat: x"'
+expect pass "$flow" 'git switch main'
+expect pass "$flow" 'git checkout -b T000001-login-2'
+expect pass "$flow" 'git branch'
+expect pass "$flow" 'git stash list'
+expect pass "$flow" 'git -C . status'
+expect pass "$flow" 'grep -rn git src'
+expect pass "$flow" 'gh pr view 9 --json state'
+expect pass "$flow" 'gh pr checks 9'
+expect pass "$flow" 'gh issue view 1 --json body --jq .body'
+expect pass "$flow" 'gh api repos/o/r/issues/1'
+expect ask  "$flow" 'git merge main'
+expect ask  "$flow" 'git rebase main'
+expect ask  "$flow" 'git reset --hard HEAD~1'
+expect ask  "$flow" 'git commit --amend --no-edit'
+expect ask  "$flow" 'git checkout -- src/a.ts'
+expect ask  "$flow" 'git branch -D T000001-login'
+expect ask  "$flow" 'git stash drop'
+expect ask  "$flow" 'git clean -fd'
+expect ask  "$flow" 'gh pr merge 9 --squash'
+expect ask  "$flow" 'gh issue close 1'
+expect ask  "$flow" 'gh api -X PUT repos/o/r/pulls/9/merge'
+expect ask  "$flow" 'bash -c "git merge main"'
+expect ask  "$flow" 'cd . && git reset --hard'
+reason_has "$flow" 'gh pr merge 9' 'gh pr merge'
+
+# The Base of an open run.
+state="Base of an open run"
+git -C "$flow" checkout -q main
+expect pass "$flow" 'git status'
+expect pass "$flow" 'git log'
+expect pass "$flow" 'git switch T000001-login'
+expect ask  "$flow" 'git merge --no-ff T000001-login'
+expect ask  "$flow" 'git commit -m x'
+expect ask  "$flow" 'git push'
+expect deny "$flow" 'git push --force'
+reason_has "$flow" 'git commit -m x' 'Base ブランチ main'
+set_state done
+expect pass "$flow" 'git merge --no-ff T000001-login'   # the run is closed
+set_state implement:in-progress
+git -C "$flow" checkout -q T000001-login
+
+# MCP tools: GitHub / git writes ask where a run is involved.
+state="MCP"
+expect_tool ask  "$flow" mcp__github__merge_pull_request '{"pullNumber":9}'
+expect_tool pass "$flow" mcp__github__get_pull_request '{"pullNumber":9}'
+expect_tool pass "$flow" mcp__slack__post_message '{}'
+expect_tool pass "$plain" mcp__github__merge_pull_request '{"pullNumber":9}'
+
+# Edit / Write before the Plan is approved (docs/flow/.active).
+state="Edit before Plan approval"
+set_state plan:awaiting-approval
+echo T000001 > "$flow/docs/flow/.active"
+expect_tool ask  "$flow" Edit "{\"file_path\":\"$flow/src/a.ts\"}"
+expect_tool ask  "$flow" Write "{\"file_path\":\"$flow/new/dir/b.ts\"}"
+expect_tool pass "$flow" Edit "{\"file_path\":\"$flow/docs/tickets/T000001.md\"}"
+expect_tool pass "$flow" Write "{\"file_path\":\"$flow/docs/flow/T000001/main.md\"}"
+expect_tool pass "$flow" Write "{\"file_path\":\"$tmp/elsewhere.txt\"}"
+set_state implement:in-progress
+expect_tool pass "$flow" Edit "{\"file_path\":\"$flow/src/a.ts\"}"
+rm -f "$flow/docs/flow/.active"
+set_state plan:awaiting-approval
+expect_tool pass "$flow" Edit "{\"file_path\":\"$flow/src/a.ts\"}"
+set_state implement:in-progress
 
 state="no jq"
 set_state implement:in-progress

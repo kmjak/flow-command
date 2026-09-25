@@ -10,10 +10,15 @@
 #   ci_failing         at least one check failed
 #   changes_requested  a reviewer requested changes (latest review per reviewer)
 #   approved           approved, all checks passed (or none), no conflicts
+#   ready              not approved yet, but all checks passed (or none) and no conflicts;
+#                      done for review.required: false, pending otherwise
 #   pending            anything else (awaiting review, checks running, mergeability unknown)
 # Following lines are key: value details.
 #
-# Precedence: merged > closed > conflict > ci_failing > changes_requested > approved > pending
+# Precedence: merged > closed > conflict > ci_failing > changes_requested > approved > ready > pending
+#
+# FLOW_PR_JSON=<file> reads the `gh pr view --json` output from a file
+# instead of calling gh (for tests).
 set -euo pipefail
 
 if [ $# -ne 1 ]; then
@@ -21,9 +26,7 @@ if [ $# -ne 1 ]; then
   exit 2
 fi
 
-gh pr view "$1" \
-  --json url,state,mergeable,reviewDecision,latestReviews,statusCheckRollup \
-  --jq '
+filter='
     def check_result:
       if .__typename == "CheckRun" then
         if .status != "COMPLETED" then "pending"
@@ -54,6 +57,7 @@ gh pr view "$1" \
        elif $ci == "failure" then "ci_failing"
        elif $review == "changes_requested" then "changes_requested"
        elif $review == "approved" and $ci == "success" and .mergeable == "MERGEABLE" then "approved"
+       elif $ci == "success" and .mergeable == "MERGEABLE" then "ready"
        else "pending" end) as $verdict
     | $verdict,
       "url: \(.url)",
@@ -65,3 +69,11 @@ gh pr view "$1" \
       "approved_by: \($approvers | join(", "))",
       "commented_by: \($commenters | join(", "))"
   '
+
+if [ -n "${FLOW_PR_JSON:-}" ]; then
+  jq -r "$filter" "$FLOW_PR_JSON"
+else
+  gh pr view "$1" \
+    --json url,state,mergeable,reviewDecision,latestReviews,statusCheckRollup \
+    --jq "$filter"
+fi
