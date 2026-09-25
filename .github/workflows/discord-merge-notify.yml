@@ -6,27 +6,39 @@ on:
 
 jobs:
   notify:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - name: Notify Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
           URL: ${{ github.event.pull_request.html_url }}
+          NUMBER: ${{ github.event.pull_request.number }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
-          MERGER: ${{ github.event.pull_request.merged_by.login }}
-          BASE: ${{ github.event.pull_request.base.ref }}
+          MERGED_AT: ${{ github.event.pull_request.merged_at }}
+          REPO: ${{ github.repository }}
         run: |
-          jq -n --arg t "$TITLE" --arg u "$URL" --arg a "$AUTHOR" --arg m "$MERGER" --arg b "$BASE" '{
-            username: "マージ通知",
-            embeds: [{
-              title: ("🎉 flow commandがマージされました: " + $t),
-              url: $u,
-              color: 8311585,
-              fields: [
-                {name: "作成者", value: $a, inline: true},
-                {name: "マージ先", value: $b, inline: true}
-              ]
-            }]
-          }' | curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$WEBHOOK"
+          jq -n \
+            --arg t "$TITLE" --arg body "$BODY" --arg u "$URL" --arg n "$NUMBER" \
+            --arg a "$AUTHOR" --arg at "$MERGED_AT" --arg r "$REPO" '
+            def clip($max): if length > $max then .[0:$max - 1] + "…" else . end;
+            # First paragraph of the PR body that is not a heading or a comment.
+            ($body | gsub("\r"; "") | split("\n\n") | map(gsub("^\\s+|\\s+$"; ""))
+              | map(select(. != "" and (startswith("#") | not) and (startswith("<!--") | not)))
+              | (.[0] // "") | clip(300)) as $summary
+            | {
+                username: "Flow Command更新通知",
+                embeds: [{
+                  title: ($t | clip(256)),
+                  url: $u,
+                  color: 8311585,
+                  fields: [
+                    {name: "PR", value: ("#" + $n), inline: true},
+                    {name: "作成者", value: $a, inline: true}
+                  ],
+                  footer: {text: $r},
+                  timestamp: $at
+                } + (if $summary == "" then {} else {description: $summary} end)]
+              }' | curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$WEBHOOK"
