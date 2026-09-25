@@ -1,0 +1,50 @@
+# flow-command template: flow-pr-link (v1). Installed by /flow init.
+# A server-side check that a pull request from a /flow branch closes its
+# ticket's issue. The local guard hook can be bypassed; this cannot, once
+# the check is required in branch protection.
+#   branch <prefix><number>-<slug>  ->  body must contain Closes / Fixes / Resolves #<number>
+# Only for ticket.tracker: github (ticket numbers are issue numbers).
+name: flow-pr-link
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: docs/flow.config.yml
+          sparse-checkout-cone-mode: false
+      - name: Check Closes #<ticket>
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          conf=docs/flow.config.yml
+          get() { # get <parent> <key>: a nested scalar of the flat config
+            awk -v p="$1" -v k="$2" '
+              /^[^ \t#]/ { cur = $0; sub(/:.*/, "", cur); next }
+              cur == p && $0 ~ "^[ \t]+" k ":" {
+                v = $0; sub(/^[^:]*:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); gsub(/["\047]/, "", v); print v; exit
+              }' "$conf" 2>/dev/null
+          }
+          [ "$(get ticket tracker)" = github ] || { echo "ticket.tracker is not github"; exit 0; }
+          prefix=$(get ticket prefix); prefix=${prefix:-T}
+          case "$HEAD_REF" in
+            "$prefix"[0-9]*-*) ;;
+            *) echo "$HEAD_REF is not a /flow branch"; exit 0 ;;
+          esac
+          d=${HEAD_REF#"$prefix"}; d=${d%%-*}
+          n=$(printf '%s' "$d" | sed 's/^0*//')
+          if printf '%s\n' "$BODY" | grep -Eiq "(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#${n}([^0-9]|$)"; then
+            echo "closes #$n"
+          else
+            echo "::error::The PR body must contain \"Closes #$n\" (branch $HEAD_REF)."
+            exit 1
+          fi

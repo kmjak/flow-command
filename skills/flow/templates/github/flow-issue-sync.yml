@@ -1,0 +1,53 @@
+# flow-command template: flow-issue-sync (v1). Installed by /flow init.
+# Keeps /flow issues in step with pull requests on the server, so the issue
+# shows the real state even when nobody runs /flow dev locally:
+#   PR opened / reopened / ready for review  -> linked issues get flow:in-review
+#   PR merged (into any branch)               -> linked issues are closed
+# "Linked" means the PR body says Closes / Fixes / Resolves #N, and only
+# issues that carry a flow:* label are touched.
+name: flow-issue-sync
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, closed]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update linked issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          BODY: ${{ github.event.pull_request.body }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          issues=$(printf '%s\n' "$BODY" \
+            | grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' \
+            | grep -Eo '[0-9]+' | sort -u)
+          [ -n "$issues" ] || { echo "no linked issue"; exit 0; }
+          for n in $issues; do
+            info=$(gh issue view "$n" --json state,labels \
+              --jq '.state + " " + ([.labels[].name] | join(","))' 2>/dev/null) || continue
+            state=${info%% *}; labels=",${info#* },"
+            case "$labels" in *,flow:*) ;; *) echo "#$n is not a /flow issue"; continue ;; esac
+            [ "$state" = OPEN ] || continue
+            if [ "$ACTION" = closed ]; then
+              if [ "$MERGED" = true ]; then
+                gh issue close "$n" --comment "Closed by flow-issue-sync: $PR_URL merged"
+              fi
+            elif [ "$DRAFT" != true ]; then
+              args=""
+              for l in flow:todo flow:in-progress; do
+                case "$labels" in *,"$l",*) args="$args --remove-label $l" ;; esac
+              done
+              gh issue edit "$n" $args --add-label flow:in-review
+            fi
+          done

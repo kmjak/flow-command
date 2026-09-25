@@ -1,15 +1,26 @@
 #!/usr/bin/env bash
-# PreToolUse(Bash) guard for /flow, registered in ~/.claude/settings.json
-# (/flow init walks through it). It runs for every Bash call in every
-# project, and acts only on a branch that a /flow run owns
-# (docs/flow/*/main.md whose Branch is the current branch). There it:
+# PreToolUse guard for /flow, registered in ~/.claude/settings.json with
+# the matcher Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__.* (/flow init
+# walks through it). It runs for those tools in every project and acts only
+# where a /flow run is involved:
+#
+# On a run's branch (docs/flow/*/main.md whose Branch is the current branch):
 #   deny  git push --force (any form), and gh pr create whose body does not
 #         close the run's issue (Closes #N)
 #   ask   every other push / PR creation, whatever the phase, so the user
 #         confirms on the permission prompt even when git push is on the
 #         allow list; the phase is shown in the prompt
-# Detection is deliberately loose (git + push, gh + pr create, gh api +
-# pulls, quotes stripped) because a false positive only costs a prompt.
+#   ask   any git / gh subcommand outside the allow list below (merge,
+#         rebase, reset, gh pr merge, gh api writes, ...), and GitHub / git
+#         MCP tools that are not reads
+# On the Base of an open run (the branch a run merges into):
+#   the same, and a commit on the Base asks too (work goes on ticket branches)
+# While the run in docs/flow/.active is before Implement (research /
+#   approach / plan), editing a file of the repository outside docs/ asks:
+#   nothing is implemented before the Plan is approved.
+#
+# Detection is deliberately loose (quotes stripped, bash -c / eval / env
+# forms, git + push anywhere) because a false positive only costs a prompt.
 # It is accident prevention, not a sandbox: any command Claude can run can
 # be written so that it is not recognised.
 #
@@ -17,14 +28,31 @@
 # exit 2 = deny; stderr goes to Claude. JSON on stdout = ask; the reason
 # goes to the user only.
 set -uo pipefail
+. "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
 input=$(cat)
 
-# Cheap pre-filter on the raw JSON: most commands never reach git or jq.
-case "$input" in
-  *push*|*create*|*pulls*) ;;
+have_jq=0
+command -v jq >/dev/null 2>&1 && have_jq=1
+
+if [ $have_jq -eq 1 ]; then
+  tool=$(printf '%s' "$input" | jq -r '.tool_name // empty')
+else
+  tool=$(printf '%s' "$input" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+fi
+
+# Cheap pre-filters: most calls never reach git.
+case "$tool" in
+  Bash|'')
+    if [ $have_jq -eq 1 ]; then
+      case "$input" in *git*|*gh*) ;; *) exit 0 ;; esac
+    else
+      case "$input" in *push*|*create*|*pulls*) ;; *) exit 0 ;; esac
+    fi ;;
+  Edit|Write|MultiEdit|NotebookEdit|mcp__*) [ $have_jq -eq 1 ] || exit 0 ;;
   *) exit 0 ;;
 esac
+case "$tool" in mcp__*) case "$tool" in *[Gg][Ii][Tt]*) ;; *) exit 0 ;; esac ;; esac
 
 deny() {
   {
@@ -41,37 +69,75 @@ ask() {
   exit 0
 }
 
-have_jq=0
-command -v jq >/dev/null 2>&1 && have_jq=1
-
 cwd=$PWD
 if [ $have_jq -eq 1 ]; then
   c=$(printf '%s' "$input" | jq -r '.cwd // empty')
   [ -n "$c" ] && cwd=$c
 fi
 
-# Find the /flow run that owns the current branch. No jq needed, so a
-# missing jq never affects repos or branches outside /flow.
 top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || exit 0
+
+# --- Edit / Write before the Plan is approved ------------------------------
+
+case "$tool" in
+  Edit|Write|MultiEdit|NotebookEdit)
+    [ -f "$top/docs/flow/.active" ] || exit 0
+    id=$(cat "$top/docs/flow/.active")
+    f="$top/docs/flow/$id/main.md"
+    [ -f "$f" ] || exit 0
+    status=$(field "$f" Status)
+    case "$status" in research:*|approach:*|plan:*) ;; *) exit 0 ;; esac
+    path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+    [ -n "$path" ] || exit 0
+    case "$path" in /*) ;; *) path="$cwd/$path" ;; esac
+    # Resolve symlinks (/tmp, /var on macOS) through the nearest existing
+    # directory, as git does for the toplevel; the file may not exist yet.
+    d=$path; tail=""
+    while [ ! -d "$d" ]; do tail="/${d##*/}$tail"; d=${d%/*}; [ -n "$d" ] || d=/; done
+    path="$(cd "$d" && pwd -P)$tail"
+    case "$path" in
+      "$top"/docs/*) exit 0 ;;
+      "$top"/*) ask "run ${id} は ${status} です（Plan の承認前）。docs/ 以外のファイル（${path#$top/}）を編集しようとしています。/flow と無関係の作業なら許可してください。" ;;
+      *) exit 0 ;;
+    esac ;;
+esac
+
+# --- the run this branch belongs to ----------------------------------------
+
 branch=$(git -C "$cwd" symbolic-ref --short -q HEAD 2>/dev/null) || exit 0
 
-field() { # field <main.md> <name> -> value from the header table
-  awk -F'|' -v k="$2" '{ key=$2; gsub(/^[ \t]+|[ \t]+$/, "", key) }
-    key == k { v=$3; gsub(/^[ \t]+|[ \t]+$/, "", v); print v; exit }' "$1"
-}
-
-state=""
+state=""; base_of=""
 for f in "$top"/docs/flow/*/main.md; do
   [ -f "$f" ] || continue
   if [ "$(field "$f" Branch)" = "$branch" ]; then state=$f; break; fi
+  if [ -z "$base_of" ] && is_open_status "$(field "$f" Status)" && [ "$(field "$f" Base)" = "$branch" ]; then
+    base_of=$f
+  fi
 done
-[ -n "$state" ] || exit 0
+[ -n "$state" ] || [ -n "$base_of" ] || exit 0
 
-status=$(field "$state" Status)
-base=$(field "$state" Base)
-where="ブランチ ${branch}、Status ${status}（${state#$top/}）"
+if [ -n "$state" ]; then
+  status=$(field "$state" Status)
+  base=$(field "$state" Base)
+  where="ブランチ ${branch}、Status ${status}（${state#$top/}）"
+else
+  run=${base_of%/main.md}; run=${run##*/}
+  where="Base ブランチ ${branch}（進行中の run ${run} の Base）"
+fi
+
+# --- MCP -------------------------------------------------------------------
+
+case "$tool" in
+  mcp__*)
+    verb=${tool##*__}
+    case "$verb" in get*|list*|search*|read*|view*|fetch*) exit 0 ;; esac
+    ask "MCP の ${tool} は git / GitHub への書き込みの可能性があります。${where}。許可しますか？" ;;
+esac
+
+# --- Bash ------------------------------------------------------------------
 
 if [ $have_jq -eq 0 ]; then
+  [ -n "$state" ] || exit 0
   ask "jq が無いため、このコマンドが push / PR 作成かを詳しく判定できません。${where}。jq をインストールすると判定できます。"
 fi
 
@@ -87,7 +153,8 @@ gh_pr_create_re="${seg_start}gh([[:space:]]+--?[A-Za-z][A-Za-z-]*(=[^[:space:]]+
 # Loose forms: words anywhere once quotes and backslashes are removed, so
 # bash -c "git push", eval, env, "git" push and gh api .../pulls are caught.
 # `stash push` is local and dropped first.
-norm=$(printf '%s\n' "$cmd" | tr -d "\"'\\\\" | sed -E 's/stash[[:space:]]+push//g')
+unquoted=$(printf '%s\n' "$cmd" | tr -d "\"'\\\\")
+norm=$(printf '%s\n' "$unquoted" | sed -E 's/stash[[:space:]]+push//g')
 has_word() { printf '%s\n' "$norm" | grep -Eq "(^|[^[:alnum:]_-])$1([^[:alnum:]_-]|$)"; }
 
 is_pr_create=0; precise_pr=0
@@ -98,7 +165,87 @@ fi
 is_push=0; precise_push=0
 printf '%s\n' "$cmd" | grep -Eq "$git_push_re" && { is_push=1; precise_push=1; }
 has_word git && has_word push && is_push=1
-[ $is_push -eq 1 ] || [ $is_pr_create -eq 1 ] || exit 0
+
+# Allow list: every git / gh in command position must be a read or a local,
+# recoverable step. The first one that is not becomes $other.
+other=""
+has_arg() { # has_arg <pattern>...: one of the remaining words matches
+  local w p
+  for w in $rest; do for p in "$@"; do
+    # shellcheck disable=SC2254 # $p is a pattern on purpose
+    case "$w" in $p) return 0 ;; esac
+  done; done
+  return 1
+}
+git_ok() { # git_ok <sub>
+  case "$1" in
+    ''|push|status|diff|log|show|rev-parse|symbolic-ref|ls-files|ls-tree|ls-remote|check-ignore|merge-base|fetch|switch|add|rm|mv|blame|grep|describe|cat-file|for-each-ref|rev-list|shortlog|name-rev|show-ref|diff-tree|diff-files|diff-index|help|version|--version) return 0 ;;
+    commit) [ -z "$state" ] && return 1; has_arg --amend && return 1; return 0 ;;
+    checkout) [ -z "$rest" ] || has_arg -b -B ;;
+    branch) ! has_arg '-[dDmMcCfu]' '--delete' '--move' '--copy' '--force' '--set-upstream-to*' '--unset-upstream' '--edit-description' ;;
+    stash) [ -z "$rest" ] || has_arg push list show pop apply save ;;
+    tag) [ -z "$rest" ] || has_arg -l '--list' ;;
+    config) has_arg --get '--get-all' '--get-regexp' --list -l ;;
+    remote) [ -z "$rest" ] || has_arg -v get-url show ;;
+    worktree) has_arg list ;;
+    *) return 1 ;;
+  esac
+}
+gh_ok() { # gh_ok <sub> <sub2>
+  case "$1 $2" in
+    'pr create'*) return 0 ;;   # handled above: Closes check and a prompt
+    'pr view'*|'pr list'*|'pr checks'*|'pr diff'*|'pr status'*) return 0 ;;
+    'issue view'*|'issue list'*|'issue status'*) return 0 ;;
+    'run view'*|'run list'*|'run watch'*|'repo view'*|'auth status'*|'label list'*) return 0 ;;
+    'release view'*|'release list'*|'workflow view'*|'workflow list'*|'search '*) return 0 ;;
+    'status '*|'help '*|'version '*|'--version '*|' ') return 0 ;;
+    'api '*) ! has_arg -X '--method' -f -F '--field' '--raw-field' '--input' '-X*' '--method=*' ;;
+    *) return 1 ;;
+  esac
+}
+
+segments=$(printf '%s\n' "$unquoted" | tr ';&|(){}`' '\n\n\n\n\n\n\n\n')
+set -f
+while IFS= read -r seg; do
+  [ -n "$other" ] && break
+  # shellcheck disable=SC2206 # word splitting (globbing off) is the point
+  words=($seg)
+  n=${#words[@]}; i=0; cmdpos=1
+  while [ $i -lt $n ] && [ $cmdpos -eq 1 ]; do
+    w=${words[$i]}
+    case "$w" in
+      [A-Za-z_]*=*|command|env|sudo|exec|xargs|eval|time|nohup|nice|bash|sh|zsh|-*) i=$((i + 1)); continue ;;
+      git|*/git)
+        j=$((i + 1))
+        while [ $j -lt $n ]; do
+          case "${words[$j]}" in
+            -C|-c|--git-dir|--work-tree|--namespace) j=$((j + 2)) ;;
+            -*) j=$((j + 1)) ;;
+            *) break ;;
+          esac
+        done
+        sub=${words[$j]:-}; rest="${words[*]:$((j + 1))}"
+        git_ok "$sub" || other="git ${sub}" ;;
+      gh|*/gh)
+        j=$((i + 1))
+        while [ $j -lt $n ]; do
+          case "${words[$j]}" in
+            -R|--repo|--hostname) j=$((j + 2)) ;;
+            -*) j=$((j + 1)) ;;
+            *) break ;;
+          esac
+        done
+        sub=${words[$j]:-}; sub2=${words[$((j + 1))]:-}; rest="${words[*]:$((j + 1))}"
+        gh_ok "$sub" "$sub2" || other="gh ${sub} ${sub2}" ;;
+    esac
+    cmdpos=0
+  done
+done <<EOF
+$segments
+EOF
+set +f
+
+[ $is_push -eq 1 ] || [ $is_pr_create -eq 1 ] || [ -n "$other" ] || exit 0
 
 # deny: force push, in any form, inside the push segment(s).
 if [ $is_push -eq 1 ]; then
@@ -107,6 +254,12 @@ if [ $is_push -eq 1 ]; then
       | grep -Eq '(^|[[:space:]])(--force|--force-with-lease(=[^[:space:]]*)?|--force-if-includes|-[A-Za-z]*f[A-Za-z]*)([[:space:]]|$)|[[:space:]]\+[^[:space:]]'; then
     deny "force push は禁止です（ブランチ ${branch}）。履歴の書き換えが本当に必要なら、ユーザー自身が ! git push --force-with-lease などで実行してください。"
   fi
+fi
+
+if [ -z "$state" ]; then
+  # On the Base of an open run.
+  if [ $is_push -eq 1 ]; then what="push"; elif [ $is_pr_create -eq 1 ]; then what="PR 作成"; else what=$other; fi
+  ask "⚠ ${where} で ${what} を実行しようとしています。/flow の作業はチケットのブランチで行います。承認しますか？"
 fi
 
 # deny: the PR must close the run's issue. Only the precise form has a body
@@ -131,10 +284,15 @@ $(cat "$body_file")"
   fi
 fi
 
+if [ $is_push -eq 0 ] && [ $is_pr_create -eq 0 ]; then
+  ask "${other} は /flow の許可リストにない git / gh 操作です（merge・rebase・reset・gh pr merge など）。${where}。承認しますか？"
+fi
+
 # ask: everything else that leaves the machine. The phase goes in the prompt.
 if [ $is_pr_create -eq 1 ]; then what="PR 作成"; obj="PR 作成を"; else what="push"; obj="push を"; fi
 detail="${where}、Base ${base:-—}"
 [ $is_pr_create -eq 1 ] && [ -n "$issue" ] && detail="${detail}、Closes #${issue}"
+[ -n "$other" ] && detail="${detail}、ほかに ${other} を含む"
 pr_url=$(awk '/^## PR/{p=1; next} /^## /{p=0} p' "$state" | grep -Eo -m1 'https://[^[:space:]]+/pull/[0-9]+' || true)
 
 case "$status" in

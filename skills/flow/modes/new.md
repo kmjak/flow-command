@@ -1,22 +1,22 @@
 # new モード — チケット作成
 
-目的：`docs/tickets/<ticket-id>.md` を、ユーザーとの対話で作る。id は自分で決めず、共通規約のとおり自動で決める（`github` なら issue 番号、`local` なら連番）。
+目的：チケットを、ユーザーとの対話で作る。id は自分で決めず、共通規約のとおり自動で決める（`github` なら issue 番号、`local` なら連番）。
 
 1. `docs/` が無い（init 未実行の）場合は、その旨を伝えて `/flow init` を提案する。ユーザーがこのまま進めると言えば `docs/tickets/` だけ作り、`tracker: local` として続ける。
-2. `docs/flow.config.yml` から `language`（無ければ日本語）と `ticket`（無ければ共通規約の既定値）を読む。`tracker: github` なら `references/github.md` の「事前チェック」を行う。
-3. **既存チケットを指していないか**を確かめる：引数が既存のチケットを指している（`docs/tickets/<正規化した id>.md` が存在する）場合は、新規作成ではない。何もせずに、編集なら `/flow edit <ticket-id>`、実装なら `/flow dev <ticket-id>` を案内する。**既存ファイルを黙って上書きしない。**
+2. `docs/flow.config.yml` の `language`（無ければ日本語）と `ticket`（無ければ共通規約の既定値）を使う（SKILL.md の「現在の状態」にある）。`tracker: github` なら `references/github.md` を Read して「事前チェック」を行う。
+3. **既存チケットを指していないか**を確かめる：引数が既存のチケットを指している（`ticket-id.sh normalize` で id になり、`docs/tickets/<id>.md` か、GitHub 連携なら同じ番号の issue が存在する）場合は、新規作成ではない。何もせずに、編集なら `/flow edit <ticket-id>`、実装なら `/flow dev <ticket-id>` を案内する。**既存のチケットを黙って上書きしない。**
 4. それ以外の引数は、作りたいものの説明として扱う（無ければ尋ねる）。
-5. 何を作りたいか・なぜ必要かをユーザーに尋ね、下記テンプレートの各項目を対話で埋める。テンプレート内の HTML コメント（記入ガイド）は完成したチケットには残さない。
+5. **対話で埋める**：何を作りたいか・なぜ必要かをユーザーに尋ね、下記テンプレートの各項目を対話で埋める。テンプレート内の HTML コメント（記入ガイド）は完成したチケットには残さない。
    - **要件を捏造しない。** ユーザーが言っていないことは書かない。こちらの提案は提案として示し、合意したものだけ書く。
    - 決まらない点は削らず「未決事項」に残す。
+   - 受け入れ条件は、dev の Plan で「何で確かめるか」を決められる形（できた／できていないを判定できる形）にする。
    - 必要なら `docs/context/**` やコードを読んで、質問を具体的にする。
-6. 下書き（id はまだ決まっていないので `<ticket-id>` のまま）を提示し、合意を得る。`github` なら、同時に**作成する issue**（タイトル・本文・ラベル。`references/github.md` の「作成」）も示し、「この内容で issue を作成してチケットを書く」ことへの確認を得る。
-7. id を決めてファイルに書く：
-   - `github` — issue を作成し、返ってきた番号から id を作る。チケットの `Issue:` 行に `#<番号>` を書く。
-   - `local` — 連番で id を決める。`Issue:` 行は書かない。
-   - 決まった id の `docs/tickets/<ticket-id>.md` が既に存在したら書かずに停止して尋ねる（`local` で他の人と衝突した可能性がある）。
+6. 下書き（id はまだ決まっていないので `<ticket-id>` のまま）を提示し、合意を得る。`github` なら、同時に**作成する issue**（タイトル・本文・ラベル `flow:todo`）も示し、「この内容で issue を作成する」ことへの確認を得る。
+7. **id を決めて書く**：
+   - `github` — `references/github.md` の「作成」のとおり、下書きから issue を作り（`issue-sync.sh create`）、番号から id を作り、issue から手元のコピーを作る（`issue-sync.sh pull`）。手元のコピーは git で管理しない。
+   - `local` — `bash <scripts>/ticket-id.sh next` で id を決め、下書きの `<ticket-id>` を置き換えて `docs/tickets/<ticket-id>.md` に書く。`Issue:` 行は書かない。決まった id のファイルが既に存在したら、書かずに停止して尋ねる（他の人と同時に作って衝突した可能性がある）。
 8. 作った id（`github` なら issue の URL も）を伝え、次の一手として `/flow dev <ticket-id>` を案内する。状態ファイル（`docs/flow/...`）は作らない（dev の役目）。
-9. **commit はしない。** チケットはまとめて何枚も作ることがあるため、1 枚ずつ commit しない。チケットは、それを実装する PR の最初の commit として dev の Implement で commit する。
+9. **commit はしない。** `local` では、チケットはまとめて何枚も作ることがあるため 1 枚ずつ commit せず、それを実装する PR の最初の commit として dev の Implement で commit する。`github` ではチケットは issue にあり、手元のファイルは commit しない。
 
 チケットのテンプレート（日本語版。ドキュメント言語が日本語以外なら、見出しとコメントをその言語に訳して使う。該当しない項目も削らず「なし」と書く）：
 
@@ -24,8 +24,9 @@
 # <ticket-id>: <タイトル>
 
 Issue: #<番号>
-<!-- tracker が github のときだけ書く（github のとき、最初の ## から下は全て issue の本文にそのまま載る）。local のときはこの行ごと書かない。`Issue:` は英語の固定キー。
-     この下に入る `Status: canceled` と `Reason:` の行は /flow cancel だけが書く。new では書かない。 -->
+<!-- tracker が github のときだけ（issue-sync.sh pull が書く）。local のときはこの行ごと書かない。`Issue:` は英語の固定キー。
+     この下に入る `Status: canceled` と `Reason:` の行は /flow cancel だけが書く。new では書かない。
+     最初の ## から下は全て issue の本文にそのまま載る。 -->
 
 ## 背景
 <!-- なぜ必要か。解決したい問題や動機、誰が影響を受けるか。 -->
