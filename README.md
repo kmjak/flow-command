@@ -54,6 +54,7 @@ ln -sfn "$(pwd)/agents/flow-reviewer.md" ~/.claude/agents/flow-reviewer.md
 | サービス／ドメイン知識 | `docs/context/**` |
 | チケット | `docs/tickets/<ticket-id>.md` |
 | flow 設定 | `docs/flow.config.yml`（git 管理） |
+| commit 規約 | `docs/context/commit.md`（`Source:` に既存の規約ファイルのパス、無ければ本文に規約を書く） |
 | flow 状態 | `docs/flow/<ticket-id>/main.md`（git 管理外） |
 | ブランチ名 | `<ticket-id>-<slug>` |
 

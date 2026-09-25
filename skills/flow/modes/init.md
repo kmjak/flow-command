@@ -11,12 +11,30 @@
    - キー名は用途を表す短い名前（`test`・`lint`・`typecheck` など）にする。書いた順に実行する。
    - 検証コマンドが無い（テストが無い等）場合は `commands: {}` と書き、その旨を伝える（dev は検証をスキップして、そのことを記録する）。
    - 新たにラッパー（Makefile 等）は作らない。既存のコマンドをそのまま書く。
-4. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
-   - `docs/context/`（中身は手順 5）
+4. **commit 規約を決める**（`docs/context/commit.md`。既にあれば読んで使い、尋ねない）：dev の commit はこのファイルに従う。
+   - AskUserQuestion で「既存の規約ファイルがある」「無いので作る」を尋ねる。先に `CONTRIBUTING.md`・`commitlint.config.*`・`.gitmessage`・`.github/` 配下などを見て、候補があれば選択肢の説明に含める。
+   - **ある場合**：パスを確定し、`Source:` にそのパスを書く。本文はコピーしない（元のファイルとずれるため）。本文欄には、flow 固有の補足（あれば）だけを書く。
+   - **無い場合**：`Source:` は空欄にし、同じファイルの本文に規約を書く。直近の `git log` の書式を読んで下書きを提案し、合意したものだけを書く（履歴が無ければ、件名の形式・言語・本文の書き方の最低限を対話で決める）。
+   - どちらの場合も、commit メッセージの言語を `Language:` に書く（既存の規約に書かれていればそれに合わせる）。
+
+   テンプレート（見出しと本文はドキュメント言語、`Source:`・`Language:` は英語の固定キー）：
+
+   ```markdown
+   # commit 規約
+
+   Source: <既存の規約ファイルのパス。無ければ空欄>
+   Language: <commit メッセージの言語>
+
+   <!-- Source が空欄なら、ここに規約本文を書く。
+        Source があれば、ここには flow 固有の補足だけを書く（Source と矛盾したら Source を優先する）。 -->
+   ```
+5. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
+   - `docs/context/`（中身は手順 6。`commit.md` は手順 4）
+   - `docs/context/commit.md`（手順 4 で決めた内容）
    - `docs/tickets/.gitkeep`
    - `docs/flow.config.yml` — 手順 2・3 で決めた値を書く（既にあれば、足りないキーだけを追記する）。
    - `.gitignore` に `docs/flow/` を追加（既に無視されていれば何もしない。`.gitignore` が無ければ作る）。`docs/flow/` 自体は dev が必要になったときに作るので、ここでは作らない。
-5. **context を作る**：`docs/context/` に既にファイルがある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
+6. **context を作る**：`docs/context/` に（手順 4 の `commit.md` 以外の）ファイルが既にある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
    - **対話で作る** — 下記「対話で作る場合」の手順で、各項目の内容をユーザーと一緒に決めて `docs/context/overview.md` を書く。
    - **自分で作る** — 下記テンプレートの見出しと記入ガイドだけを入れた `docs/context/overview.md` を作り、中身はユーザーが書く。こちらからは内容を埋めない。
 
@@ -52,9 +70,9 @@
    ```
 
    対話で作った場合、完成したファイルには記入ガイドのコメントを残さない。自分で作る場合はコメントを残す（書くときのガイドになるため）。
-6. **reviewer agent を確認する**：利用できる agent に `flow-reviewer`（dev の Review で使う）が無ければ、README の導入手順を案内する（init を止める必要はない。dev の Review までに導入すればよい）。
-7. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
-8. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージを提示し、確認を得てから commit する（push はしない）。
+7. **reviewer agent を確認する**：利用できる agent に `flow-reviewer`（dev の Review で使う）が無ければ、README の導入手順を案内する（init を止める必要はない。dev の Review までに導入すればよい）。
+8. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
+9. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する（push はしない）。
    - 自分で作る場合は、ユーザーが `overview.md` を書き終えてから commit するか、雛形のまま今 commit するかを尋ねる。
    - init が作ったもの以外の変更は commit に含めない。
-9. 次の一手として `/flow new <ticket-id>` を案内する。
+10. 次の一手として `/flow new <ticket-id>` を案内する。
