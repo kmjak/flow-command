@@ -54,7 +54,7 @@
         Source があれば、ここには flow 固有の補足だけを書く（Source と矛盾したら Source を優先する）。 -->
    ```
 6. **チケット管理を決める**（`ticket`）：`repository.host` が `none` なら尋ねずに `tracker: local` にする。`github` なら AskUserQuestion で次から選んでもらう。チームで使うなら GitHub を勧める（id が衝突せず、他の人が状況と担当者を見られるため）。
-   - **GitHub issue と連携する**（`tracker: github`）— new で issue を作り、issue 番号を id にする。issue にはチケットの全文（バックアップになり、手元から消えても復元できる）・ステータス（ラベル）・担当者を載せる。public リポジトリでは背景や未決事項も公開されることを伝える（`references/github.md`）。
+   - **GitHub issue と連携する**（`tracker: github`）— new で issue を作り、issue 番号を id にする。issue にはチケットの全文（issue が正本になり、手元に無い人も issue から取得できる）・ステータス（ラベル）・担当者を載せる。public リポジトリでは背景や未決事項も公開されることを伝える（`references/github.md`）。
    - **ローカルのみ**（`tracker: local`）— 今までどおり。id はローカルの連番。チケットは実装 PR に入るまで手元にしか無く、消えても復元できない・他の人と共有できないことを伝える（GitHub 連携なら issue から復元できる）。
 
    `prefix` と `pad` は既定値（`T`・`6`）を書き、変えたければ config を直せばよいことを伝える（既存のチケットがある状態で変えると id の形式が混ざる点も伝える）。

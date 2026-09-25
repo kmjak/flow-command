@@ -7,11 +7,11 @@
 
 新規・再開のどちらでも、まず `docs/flow.config.yml` の `language` を読む（無ければ日本語）。この run の間、`main.md` のセクション本文はこの言語で書く。同じく `ticket` を読み（無ければ共通規約の既定値）、指定された id を共通規約のとおり正規化する。
 
-**GitHub 連携**（`ticket.tracker: github` で、チケットに `Issue: #<番号>` がある場合）：`references/github.md` の「事前チェック」を行い、issue の本文を同期する。以降、同ファイルの定めに従ってラベル・assignee・PR との紐付け・クローズを行う。`Issue:` 行が無いチケット（`local` の時代に作ったもの等）では issue の操作をしない。
+**GitHub 連携**（`ticket.tracker: github` で、チケットに `Issue: #<番号>` がある場合）：`references/github.md` の「事前チェック」を行い、チケットがあることを確かめた後（下記 2・3）、issue と照合する（同ファイルの「issue との照合」）。issue の内容を取り込み、進行中の run（状態ファイルがあり、`Status` が `done`・`canceled` 以外）がある場合は、`modes/edit.md` の手順 7 を Read して同じ手順でフェーズを戻すか尋ねてから再開する。以降、同ファイルの定めに従ってラベル・assignee・PR との紐付け・クローズを行う。`Issue:` 行が無いチケット（`local` の時代に作ったもの等）では issue の操作をしない。
 
 0. **キャンセル済みのチケット**（チケットに `Status: canceled`、または `main.md` の `Status` が `canceled`）なら、理由（`Reason:`）を示して止まる。やり直したいなら、新しいチケットを `/flow new` で作るよう伝える。
 1. **チケット id が無い**場合：尋ねる。進行中の run がちょうど 1 つなら、その再開を提案する（チケット id と Status を示す）。推測で決めない。
-2. **状態ファイル `docs/flow/<ticket-id>/main.md` が存在する**場合：読んで `Status` から再開する。
+2. **状態ファイル `docs/flow/<ticket-id>/main.md` が存在する**場合：読んで `Status` から再開する。チケットが手元に無ければ、GitHub 連携で issue があれば `references/github.md` の「手元にチケットが無い場合（復元）」で復元してから再開する（無ければ停止して伝える）。
    - `<phase>:awaiting-approval` → そのフェーズの要約とゲートを再提示し、停止して待つ。
    - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。`pr:in-progress` の場合は、先にそのブランチの PR が既に存在しないか確認する（Phase 6 手順 1）。
    - `pr:awaiting-review` → PR の状況（レビュー・CI・コンフリクト）を確認する（Phase 6 手順 5）。
@@ -181,7 +181,7 @@ Verification @ a1b2c3d: test pass, lint pass
 `repository.host` が `none`（GitHub を使わない）なら、PR は出さずに下記「ローカルのみの場合」で進める。以下の手順 1〜5 は `host: github` の場合。
 
 1. `Status: pr:in-progress` にする。まず、そのブランチの PR が既に存在しないか確認する（`gh pr list --head <branch> --state all`）。中断からの再開で既に作成済みなら、新しく作らずに URL を `## PR` に記録し、`Status: pr:awaiting-review` にして手順 5 へ進む。
-   無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ヘッダ表の `Base`）・**PR タイトル**・変更概要（PR 本文の下書き）。タイトルと本文はドキュメント言語で書く。GitHub 連携なら、本文の末尾に **`Closes #<番号>` を必ず入れ**、作成の直前に issue の本文を同期する。
+   無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ヘッダ表の `Base`）・**PR タイトル**・変更概要（PR 本文の下書き）。タイトルと本文はドキュメント言語で書く。GitHub 連携なら、本文の末尾に **`Closes #<番号>` を必ず入れ**、作成の直前に issue と照合する。照合で issue の内容を取り込んだら、PR を作らずに停止し、起動時と同じくフェーズを戻すか尋ねる（実装が変更後のチケットを満たしているとは限らないため）。
 2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** このゲートは前段を飛ばしてきても必ず発生する。勝手に push / PR しない。
 3. 確認されたら、`Status` は `pr:awaiting-approval` のまま push して PR を作成する（例：`gh pr create`。`--fill` は使わず本文を明示する）。guard hook が登録されていれば、push・PR 作成のたびにユーザーの確認画面が出る。**確認画面で拒否されたら、言い換えて再実行せず、停止して指示を待つ**（SKILL.md のガードレール）。GitHub 連携なら、作成後に issue との紐付けを確かめ（`references/github.md` の「PR との紐付け」）、issue を `flow:in-review` にする。
 4. PR タイトル・向き先・URL を `## PR` に書き、`Status: pr:awaiting-review` にして URL を報告し、停止する。**この時点では `done` にしない。** レビューは人が行うので、flow は待つだけ。ユーザーには、レビューが進んだら `/flow dev <ticket-id>` で再開するよう案内する。
