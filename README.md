@@ -56,7 +56,7 @@ ln -sfn "$(pwd)/agents/flow-reviewer.md" ~/.claude/agents/flow-reviewer.md
 | 用途 | パス |
 |------|------|
 | サービス／ドメイン知識 | `docs/context/**` |
-| チケット | `docs/tickets/<ticket-id>.md`（正本。GitHub 連携時は issue がその写し） |
+| チケット | `docs/tickets/<ticket-id>.md`（GitHub 連携時は issue が正本で、手元はその写し） |
 | flow 設定 | `docs/flow.config.yml`（git 管理） |
 | commit 規約 | `docs/context/commit.md`（`Source:` に既存の規約ファイルのパス、無ければ本文に規約を書く） |
 | flow 状態 | `docs/flow/<ticket-id>/main.md`（git 管理外） |
@@ -86,7 +86,8 @@ repository:
 
 `/flow init` でチケット管理に GitHub を選ぶと（`ticket.tracker: github`）、チケットが issue と連携する。チームで使うときに、誰がどのチケットをどこまで進めているかを見えるようにし、id の衝突を防ぐため。
 
-- **一方通行**：正本はローカルのチケット。issue の本文はチケットから生成して上書きするので、手で編集しない（本文の冒頭で告知する）。コメントは自由。
+- **正本は issue**：チケットの変更は `/flow edit` だけで行い、edit が直後に issue へ同期する。issue の本文は GitHub 上で直接編集しない（本文の冒頭で告知する）。コメントは自由。
+- **照合**：dev・edit の開始時と PR 作成の直前に、issue と手元のチケットを比べる。違えば差分を示し、issue を採用するか（既定）手元を採用するかを尋ねる。進行中の run で issue を取り込んだら、edit と同じ基準でフェーズを戻すか尋ねる。目印が壊れている（直接編集された）issue からは取り込まない。
 - **issue に載せるもの**：チケットの全セクション（そのままコピー）、ステータスのラベル、担当者。flow 状態は載せない。
 - **id**：new で issue を作り、その番号から id を決める（#123 → `T000123`）。チケットには `Issue: #123` を書く。
 
@@ -97,7 +98,7 @@ repository:
 | PR 作成 | `flow:in-review`。PR 本文に `Closes #123` を必ず入れ、紐付けを確認する |
 | マージ | 閉じる（`Closes` で閉じない Base 向けの PR でも flow が閉じる） |
 
-チケットファイルは実装 PR に入るまで作成者の手元にしか無いが、issue に全文が載っているので、手元から消えた場合や別の人が引き継ぐ場合は issue から復元できる（dev・edit・cancel が自動で行い、内容を確認してから書く）。`tracker: local` にはこの仕組みが無い。
+チケットファイルは実装 PR に入るまで作成者の手元にしか無いが、issue に全文が載っているので、手元から消えた場合や別の人が作ったチケットで dev を始める場合は issue から取得できる（dev・edit・cancel が自動で行い、内容を確認してから書く）。`tracker: local` にはこの仕組みが無い。
 
 ## フェーズ
 

@@ -71,7 +71,7 @@ allowed-tools: Read, Glob, Grep
 | 用途 | パス |
 |------|------|
 | サービス／ドメイン知識 | `docs/context/**`（必要な分だけ読む） |
-| チケット | `docs/tickets/<ticket-id>.md`（`github` のときは issue が写しになる。`references/github.md`） |
+| チケット | `docs/tickets/<ticket-id>.md`（`github` のときは issue が正本で、手元はその写し。`references/github.md`） |
 | flow 設定 | `docs/flow.config.yml`（git 管理する。チーム共通） |
 | flow 状態 | `docs/flow/<ticket-id>/main.md`（**git 管理外**） |
 | ブランチ名 | `<ticket-id>-<slug>`（チケット id を接頭辞にする） |
