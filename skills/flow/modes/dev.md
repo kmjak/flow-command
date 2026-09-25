@@ -16,7 +16,7 @@
    - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。`pr:in-progress` の場合は、先にそのブランチの PR が既に存在しないか確認する（Phase 6 手順 1）。
    - `pr:awaiting-review` → PR の状況（レビュー・CI・コンフリクト）を確認する（Phase 6 手順 5）。
    - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない（やり直すなら新しいチケットを作る）。GitHub 連携で、PR がマージ済みなのに issue が開いたままなら、閉じるか尋ねる。
-3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止。GitHub 連携で issue だけが存在する場合は `references/github.md` の「手元にチケットが無い場合」）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し（ヘッダ表の `Issue` にはチケットの `Issue:` の値を、無ければ `—` を書く）、GitHub 連携なら issue を `flow:in-progress` にして assignee に自分を追加する（他の人が assign されていたら、作成前に停止して尋ねる）。そのうえで Phase 1 を開始する。
+3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止。GitHub 連携で issue だけが存在する場合は `references/github.md` の「手元にチケットが無い場合（復元）」で復元してから続ける）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し（ヘッダ表の `Issue` にはチケットの `Issue:` の値を、無ければ `—` を書く）、GitHub 連携なら issue を `flow:in-progress` にして assignee に自分を追加する（他の人が assign されていたら、作成前に停止して尋ねる）。そのうえで Phase 1 を開始する。
 
 ## 状態ファイル `docs/flow/<ticket-id>/main.md`
 
