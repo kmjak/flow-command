@@ -80,7 +80,12 @@ allowed-tools: Read, Glob, Grep
     tracker: github   # github（issue と連携）| local（ローカルのみ）
     prefix: T
     pad: 6
+  repository:
+    host: github          # github（PR を出す）| none（ローカルのみ。Phase 6 はローカルでマージ）
+    default_branch: main  # Plan の Base の既定値。host: none ではマージ先
   ```
+- `repository` が無い（古い init で作った設定）場合は、`origin` が GitHub を指していれば `host: github`、そうでなければ `host: none` として扱い、`default_branch` は `git symbolic-ref --short refs/remotes/origin/HEAD` から取る（取れなければ Plan で尋ねる）。`/flow init` の再実行で設定できることを伝える。
+- `ticket.tracker: github` は `repository.host: github` のときだけ使える。
 - 上記パスは固定規約。`init` はこの規約どおりの雛形を作るだけで、パスの選択はしない。
 - 状態はあえて**フォルダ形式**（`docs/flow/<ticket-id>/main.md`）にしている。v2 の複数ブランチ対応で兄弟ファイル `docs/flow/<ticket-id>/<subticket>.md` を足すため。v1 では兄弟ファイルを作らない。
 - チケット id にファイルパスや git ブランチ名に使えない文字（空白、`/`、`#`、`~`、`^`、`:` など）が含まれる場合は、勝手に書き換えず、停止してユーザーにどうするか尋ねる。
@@ -97,8 +102,10 @@ allowed-tools: Read, Glob, Grep
 ## ガードレール
 
 - dev の 1 run につき 1 チケット。作業が別チケットの範囲に広がりそうなら指摘する。
-- 明示的な確認なしに push / PR 作成をしない（Phase 6）。
-- **hook による強制**：`scripts/guard.sh` を `~/.claude/settings.json` の PreToolUse(Bash) hook として登録しておく（登録は `/flow init` で案内する）。登録すると `/flow` の起動や `--resume` に関係なく全セッションで効き、flow のブランチ（`main.md` の `Branch` と一致するブランチ）でだけ、Phase 6 の確認ゲートより前の `git push`・`gh pr create`、`Closes #<番号>` の無い PR 作成、force push をブロックする。**ブロックされたら、コマンドを言い換えるなどして回避しない。** 理由をユーザーに伝えて指示を待つ。
+- 明示的な確認なしに push / PR 作成 / マージをしない（Phase 6）。
+- **hook による強制**：`scripts/guard.sh` を `~/.claude/settings.json` の PreToolUse(Bash) hook として登録しておく（登録は `/flow init` で案内する）。登録すると `/flow` の起動や `--resume` に関係なく全セッションで効き、flow のブランチ（`main.md` の `Branch` と一致するブランチ）でだけ、push・PR 作成のたびにユーザーの確認画面を出し（フェーズを問わない）、force push と `Closes #<番号>` の無い PR 作成をブロックする。
+  - **ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。
+  - 確認画面はチャットでの承認の代わりではない。Phase 6 のゲートでは、これまでどおりチャットで確認を得てから push / PR 作成を実行する（確認画面はその後にもう一度出る）。
 - 外部システムの操作は、`ticket.tracker: github` のときの GitHub issue に対する、`references/github.md` に定めた操作だけにする。それ以外の外部システム（Jira など）にチケットを作らない。
 
 ## v1 の対象外（v2 送り）

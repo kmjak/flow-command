@@ -69,7 +69,12 @@ language: ja
 commands:
   test: npm test
   lint: npm run lint
+repository:
+  host: github          # github | none（ローカルのみ）
+  default_branch: main
 ```
+
+`repository` は `/flow init` がリポジトリの状態から決める。GitHub リポジトリが無ければ、AI と対話して作る（オーナー・名前・公開範囲・説明・デフォルトブランチ、public なら LICENSE を 1 つずつ尋ねる）／自分で作る／不要（`host: none`）から選ぶ。config にはオーナー・名前・公開範囲は書かない（remote と GitHub から分かり、書くと食い違うため）。
 
 `docs/flow/` は `.gitignore` に入れて git 管理しない（`/flow init` が追加する）。flow 状態は個人の作業記録であり、PR に含めるとレビュアーが検討過程に引っ張られてしまうため。
 
@@ -99,7 +104,7 @@ commands:
 | 3 | Plan | ブランチ名と順序付きの commit 分割を決める（v1 は単一ブランチ） |
 | 4 | Implement | 計画どおりに実装・commit する（commit ごとには止まらない）。最後に検証コマンドを全て実行し、通るまで直す |
 | 5 | Review | reviewer agent（`flow-reviewer`）が、実装の経緯を知らない状態で実装と Approach / Plan / チケットの乖離（相違・未実装・合意外の変更）を洗い出す。実装したセッションは指摘を消さずに推奨と根拠を添えるだけで、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れをユーザーが選ぶ |
-| 6 | PR | 明示的な確認の後にだけ push して PR を作成し、Approve・CI 成功・コンフリクトなしになるまで見届ける |
+| 6 | PR | 明示的な確認の後にだけ push して PR を作成し、Approve・CI 成功・コンフリクトなしになるまで見届ける。`host: none` なら PR は出さず、確認の後に `default_branch` へ `git merge --no-ff` してブランチを削除する（コンフリクトしたら `--abort` して止まる） |
 
 ### 承認ゲート
 
@@ -165,7 +170,7 @@ bash tests/guard.test.sh
 ## 注意
 
 - `allowed-tools`（Read / Glob / Grep）の事前承認は、スキルを起動したターンにだけ有効。次のメッセージ以降は通常の許可プロンプトが出る。常時許可したい場合は `.claude/settings.json` の `permissions.allow` に追加する。
-- Plan 以降は git リポジトリが、PR にはリモートと `gh` CLI が必要。GitHub 連携を使う場合は new から `gh` の認証が必要（未認証なら `! gh auth login` を案内して止まる）。
+- Plan 以降は git リポジトリが、PR（`host: github`）にはリモートと `gh` CLI が必要。GitHub 連携を使う場合は new から `gh` の認証が必要（未認証なら `! gh auth login` を案内して止まる）。
 - `scripts/pr-status.sh` は Bash で実行するので、初回は許可プロンプトが出る。
 
 ## v2 予定
