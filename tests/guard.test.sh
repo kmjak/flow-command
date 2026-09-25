@@ -100,6 +100,19 @@ expect() {
   fi
 }
 
+# reason_has <dir> <command> <text> [PATH]: the ask prompt mentions text
+reason_has() {
+  local out
+  out=$(cd "$1" && printf '{"tool_name":"Bash","tool_input":{"command":%s},"cwd":%s}' \
+          "$(json_str "$2")" "$(json_str "$1")" \
+        | PATH=${4:-$PATH} bash "$guard" 2>/dev/null)
+  case "$out" in
+    *"$3"*) pass=$((pass + 1)) ;;
+    *) fail=$((fail + 1))
+       printf 'FAIL  [%s] %s\n      reason lacks "%s": %s\n' "$state" "$2" "$3" "$out" ;;
+  esac
+}
+
 # --- cases ------------------------------------------------------------------
 
 state="no flow"
@@ -118,55 +131,75 @@ set_state implement:in-progress
 expect pass "$flow" 'git status'
 expect pass "$flow" 'git stash push -m wip'
 expect pass "$flow" 'echo pushed'
-expect deny "$flow" 'git push'
-expect deny "$flow" 'git push -u origin T000001-login'
-expect deny "$flow" 'git -C . push'
-expect deny "$flow" 'command git push'
-expect deny "$flow" 'FOO=1 git push'
-expect deny "$flow" 'cd . && git push'
-expect deny "$flow" 'gh pr create --title t --body "Closes #1"'
+expect ask  "$flow" 'git push'
+expect ask  "$flow" 'git push -u origin T000001-login'
+expect ask  "$flow" 'git -C . push'
+expect ask  "$flow" 'command git push'
+expect ask  "$flow" 'FOO=1 git push'
+expect ask  "$flow" 'cd . && git push'
+expect ask  "$flow" 'gh pr create --title t --body "Closes #1"'
+expect deny "$flow" 'gh pr create --fill'
+expect deny "$flow" 'git push --force'
+reason_has "$flow" 'git push' 'PR ゲート前'
+reason_has "$flow" 'git push' 'implement:in-progress'
 
 state="pr:awaiting-approval"
 set_state pr:awaiting-approval
-expect pass "$flow" 'git push -u origin T000001-login'
+expect ask  "$flow" 'git push -u origin T000001-login'
 expect deny "$flow" 'git push --force'
 expect deny "$flow" 'git push -f'
 expect deny "$flow" 'git push --force-with-lease'
 expect deny "$flow" 'git push origin +T000001-login'
-expect pass "$flow" 'gh pr create --title t --body "Closes #1"'
-expect pass "$flow" 'gh pr create --title t --body "fixes #1"'
+expect ask  "$flow" 'gh pr create --title t --body "Closes #1"'
+expect ask  "$flow" 'gh pr create --title t --body "fixes #1"'
 expect deny "$flow" 'gh pr create --title t --body "Closes #12"'
 expect deny "$flow" 'gh pr create --fill'
 printf 'Summary\n\nCloses #1\n' > "$tmp/body.md"
-expect pass "$flow" "gh pr create --title t --body-file $tmp/body.md"
+expect ask  "$flow" "gh pr create --title t --body-file $tmp/body.md"
 printf 'Summary\n' > "$tmp/body-noclose.md"
 expect deny "$flow" "gh pr create --title t --body-file $tmp/body-noclose.md"
+reason_has "$flow" 'git push' 'PR ゲート'
+reason_has "$flow" 'git push' 'Base main'
+reason_has "$flow" 'gh pr create --title t --body "Closes #1"' 'Closes #1'
 
 state="pr:awaiting-review"
 set_state pr:awaiting-review 'https://github.com/o/r/pull/9'
-expect pass "$flow" 'git push'
-expect deny "$flow" 'gh pr create --title t --body "Closes #1"'
+expect ask  "$flow" 'git push'
+expect ask  "$flow" 'gh pr create --title t --body "Closes #1"'
+reason_has "$flow" 'gh pr create --title t --body "Closes #1"' 'PR は既にあります'
 
 state="pr:in-progress"
 set_state pr:in-progress
-expect deny "$flow" 'git push'
+expect ask  "$flow" 'git push'
+reason_has "$flow" 'git push' 'URL がありません'
 set_state pr:in-progress 'https://github.com/o/r/pull/9'
-expect pass "$flow" 'git push'
+expect ask  "$flow" 'git push'
+reason_has "$flow" 'git push' 'pull/9'
 
-# Known gaps: rewordings the guard does not see today.
+# Rewordings the precise patterns miss; the loose match asks.
 state="implement:in-progress (rewordings)"
 set_state implement:in-progress
-expect pass "$flow" 'bash -c "git push"'
-expect pass "$flow" 'eval "git push"'
-expect pass "$flow" 'env git push'
-expect pass "$flow" '"git" push'
-expect pass "$flow" 'gh api repos/o/r/pulls -f title=t -f head=T000001-login -f base=main'
+expect ask  "$flow" 'bash -c "git push"'
+expect ask  "$flow" 'eval "git push"'
+expect ask  "$flow" 'env git push'
+expect ask  "$flow" '"git" push'
+expect ask  "$flow" "sh -c 'git push origin HEAD'"
+expect ask  "$flow" 'gh api repos/o/r/pulls -f title=t -f head=T000001-login -f base=main'
+expect ask  "$flow" 'gh pr "create" --fill'
+expect deny "$flow" 'bash -c "git push --force"'
+expect ask  "$flow" 'echo "run git push later"'   # accepted false positive
+reason_has "$flow" 'bash -c "git push"' '可能性'
 
 state="no jq"
 set_state implement:in-progress
-expect deny "$flow"  'git push'              "$nojq"
+expect ask  "$flow"  'git push'              "$nojq"
 expect pass "$flow"  'git status'            "$nojq"
-expect deny "$plain" 'git stash push -m wip' "$nojq"   # blocks outside /flow
+expect pass "$plain" 'git stash push -m wip' "$nojq"
+expect pass "$plain" 'git push'              "$nojq"
+git -C "$flow" checkout -q main
+expect pass "$flow"  'git push'              "$nojq"
+git -C "$flow" checkout -q T000001-login
+reason_has "$flow" 'git push' 'jq' "$nojq"
 
 echo "guard: $pass passed, $fail failed"
 [ $fail -eq 0 ]
