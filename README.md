@@ -10,7 +10,7 @@ Research → Approach → Plan → Implement → Review → PR
 
 ## 導入
 
-スキル本体は `skills/flow/SKILL.md`。個人スキル（全プロジェクト共通）として使うため、`~/.claude/skills/flow` にシンボリックリンクを張る。
+スキル本体は `skills/flow/SKILL.md`（共通規約とモードの振り分け）と `skills/flow/modes/*.md`（各モードの手順。起動したモードの分だけ読む）。個人スキル（全プロジェクト共通）として使うため、`~/.claude/skills/flow` にシンボリックリンクを張る。
 
 ```sh
 ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
@@ -20,7 +20,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 
 リンクなので、このリポジトリで `SKILL.md` を編集すればそのまま全プロジェクトに反映される。
 
-特定のプロジェクトだけで使いたい場合は、そのプロジェクトの `.claude/skills/flow/` に `skills/flow/` の中身（`SKILL.md` と `scripts/`）をコピーする。
+特定のプロジェクトだけで使いたい場合は、そのプロジェクトの `.claude/skills/flow/` に `skills/flow/` の中身（`SKILL.md`・`modes/`・`scripts/`）をコピーする。
 
 ## 使い方
 
