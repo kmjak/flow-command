@@ -116,6 +116,21 @@ commands:
 - `<phase>`：`research | approach | plan | implement | review | pr`、終端は `done`
 - `<state>`：`in-progress`（作業中）／`awaiting-approval`（ゲートで承認待ち）／`awaiting-review`（`pr` のみ。PR の Approve 待ち）
 
+## hook による強制
+
+`/flow` を起動すると、SKILL.md のフロントマターに書いた PreToolUse hook（`skills/flow/scripts/guard.sh`）がそのセッションの Bash に掛かる。追加の導入手順は無い（スキルの symlink だけで有効になる）。flow のブランチ（`docs/flow/*/main.md` の `Branch` と一致するブランチ）でだけ判定し、それ以外のコマンド・ブランチは素通しする。
+
+| ブロックするもの | 条件 |
+|------------------|------|
+| `gh pr create` | `Status` が `pr:awaiting-approval`（PR の確認ゲート）でない |
+| `gh pr create` | チケットに issue があるのに、本文（`--body` / `--body-file`）に `Closes #<番号>` が無い |
+| `git push` | `Status` が `pr:awaiting-approval`・`pr:awaiting-review`、または PR 作成済みの `pr:in-progress` 以外 |
+| `git push --force` 等 | 常に（`-f`・`--force-with-lease`・`+refspec` を含む）。必要ならユーザーが `! git push --force-with-lease` で自分で実行する |
+
+- 要 `jq`。無い場合は push / PR 作成だけを止めて、インストールを促す。
+- 止めるのは Claude のツール呼び出しだけで、ユーザーが自分で実行する git / gh は止めない。
+- コマンド文字列からの判定なので、完全な防御ではない（スクリプト経由の push などは検出できない）。
+
 ## 注意
 
 - `allowed-tools`（Read / Glob / Grep）の事前承認は、スキルを起動したターンにだけ有効。次のメッセージ以降は通常の許可プロンプトが出る。常時許可したい場合は `.claude/settings.json` の `permissions.allow` に追加する。

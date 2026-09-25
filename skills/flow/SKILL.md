@@ -4,6 +4,12 @@ description: チケット単位で開発を回すフレームワーク。/flow �
 argument-hint: "[init | new [作りたいもの] | dev <ticket-id>]"
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: 'f="$HOME/.claude/skills/flow/scripts/guard.sh"; [ -f "$f" ] || f="$CLAUDE_PROJECT_DIR/.claude/skills/flow/scripts/guard.sh"; exec bash "$f"'
 ---
 
 # /flow — チケット駆動開発
@@ -98,6 +104,7 @@ allowed-tools: Read, Glob, Grep
 
 - dev の 1 run につき 1 チケット。作業が別チケットの範囲に広がりそうなら指摘する。
 - 明示的な確認なしに push / PR 作成をしない（Phase 6）。
+- **hook による強制**：`/flow` を起動すると、このセッションの Bash に `scripts/guard.sh` が掛かる。flow のブランチ（`main.md` の `Branch` と一致するブランチ）では、Phase 6 の確認ゲートより前の `git push`・`gh pr create`、`Closes #<番号>` の無い PR 作成、force push をブロックする。**ブロックされたら、コマンドを言い換えるなどして回避しない。** 理由をユーザーに伝えて指示を待つ。
 - 外部システムの操作は、`ticket.tracker: github` のときの GitHub issue に対する、`references/github.md` に定めた操作だけにする。それ以外の外部システム（Jira など）にチケットを作らない。
 
 ## v1 の対象外（v2 送り）
