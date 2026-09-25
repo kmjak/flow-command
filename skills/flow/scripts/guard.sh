@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# PreToolUse guard for /flow, registered in ~/.claude/settings.json with
-# the matcher Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__.* (/flow init
-# walks through it). It runs for those tools in every project and acts only
-# where a /flow run is involved:
+# PreToolUse guard for /flow, shipped in the flow plugin's hooks/hooks.json
+# with the matcher Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__.*. It runs
+# for those tools in every project and acts only where a /flow run is
+# involved:
 #
 # On a run's branch (docs/flow/*/main.md whose Branch is the current branch):
 #   deny  git push --force (any form), and gh pr create whose body does not

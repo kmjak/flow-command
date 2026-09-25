@@ -16,7 +16,7 @@ allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_SKILL_DIR}/scripts/status.sh
 
 ## 置き場所
 
-- スキルのディレクトリ：`${CLAUDE_SKILL_DIR}`
+- スキルのディレクトリ：`${CLAUDE_SKILL_DIR}`（各モードのファイルでは `<skill>` と書く）
 - スクリプト：`${CLAUDE_SKILL_DIR}/scripts/`（各モードのファイルでは `<scripts>` と書く。実行は `bash <scripts>/<名前>.sh …`）
 
 ## モード
@@ -64,7 +64,7 @@ allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_SKILL_DIR}/scripts/status.sh
 | `${CLAUDE_SKILL_DIR}/references/github.md` | `ticket.tracker` が `github` のとき、どのモードでも（`local` なら読まない） |
 | `${CLAUDE_SKILL_DIR}/references/rollback.md` | チケットが変わり、進行中の run のフェーズを戻すか決めるとき（edit と dev が指示する） |
 
-**会話が要約された後**（要約から再開したとき）は、続ける前に、今のモードの手順ファイルと（dev なら）`docs/flow/<ticket-id>/main.md` を Read し直す。要約には手順の細部が残らないため。SessionStart hook（init で登録）を入れていれば、そのことが自動で伝えられる。
+**会話が要約された後**（要約から再開したとき）は、続ける前に、今のモードの手順ファイルと（dev なら）`docs/flow/<ticket-id>/main.md` を Read し直す。要約には手順の細部が残らないため。SessionStart hook（plugin に同梱）が、そのことを自動で伝える。
 
 以下の共通規約・行動原則・ガードレールは全モードに適用する。
 
@@ -148,9 +148,10 @@ allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_SKILL_DIR}/scripts/status.sh
 
 - dev の 1 run につき 1 チケット。作業が別チケットの範囲に広がりそうなら指摘する。
 - 明示的な確認なしに push / PR 作成 / マージをしない（dev の PR フェーズ）。flow は PR をマージしない（`host: none` のローカルマージだけは、確認の後に行う）。
-- **hook による強制**（登録は `/flow init` で案内する。`~/.claude/settings.json` に登録するので、`/flow` の起動や `--resume` に関係なく全セッションで効く）：
+- **hook による強制**（flow plugin の `hooks/hooks.json` に同梱。plugin を有効にしていれば、`/flow` の起動や `--resume` に関係なく全セッションで効く）：
   - `scripts/guard.sh`（PreToolUse）— flow の run が関わる場所でだけ判定する。run のブランチと、進行中の run の Base では、push・PR 作成・許可リストに無い git / gh 操作（merge・rebase・reset・`gh pr merge`・`gh api` の書き込みなど）・GitHub / git の MCP の書き込みのたびに確認画面を出し、force push と `Closes #<番号>` の無い PR 作成をブロックする。Base への commit も確認画面を出す。Plan の承認前（`research`・`approach`・`plan`）に `docs/` 以外のファイルを Edit / Write しようとしたときも確認画面を出す。
   - `scripts/session-start.sh`（SessionStart、`compact|resume`）— 会話の要約・再開の後、進行中の run と読み直すファイルを伝える。
+  - 同じ hook をユーザー設定（`~/.claude/settings.json`）にも登録していると 2 回動く。`/flow init` の「古い導入の片付け」で外す。
   - **ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。
   - 確認画面はチャットでの承認の代わりではない。PR フェーズのゲートでは、これまでどおりチャットで確認を得てから push / PR 作成を実行する（確認画面はその後にもう一度出る）。
 - 外部システムの操作は、`ticket.tracker: github` のときの GitHub issue に対する、`references/github.md` に定めた操作だけにする。それ以外の外部システム（Jira など）にチケットを作らない。

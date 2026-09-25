@@ -1,0 +1,14 @@
+{
+  "name": "flow-command",
+  "description": "/flow plugin の配布元",
+  "owner": {
+    "name": "kmjak"
+  },
+  "plugins": [
+    {
+      "name": "flow",
+      "source": "./",
+      "description": "チケット単位で開発を回す /flow。Review 用の agent と、push・PR・マージを確認する hook を同梱する。"
+    }
+  ]
+}

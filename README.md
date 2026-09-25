@@ -10,29 +10,51 @@ Research → Approach → Plan → Implement → Review → PR
 
 ## 導入
 
-スキル本体は `skills/flow/SKILL.md`（共通規約とモードの振り分け）と `skills/flow/modes/*.md`（各モードの手順。起動したモードの分だけ読む）、`skills/flow/references/`（GitHub 連携・フェーズの戻し方。必要なときだけ読む）、`skills/flow/scripts/`（id・状態ファイル・検証・issue 同期・hook など、結果が 1 つに決まる処理）、`skills/flow/templates/`（init が対象プロジェクトに入れる PR テンプレートと GitHub Actions）。個人スキル（全プロジェクト共通）として使うため、`~/.claude/skills/flow` にシンボリックリンクを張る。
+Claude Code の plugin として配布している。このリポジトリが marketplace を兼ねる。
 
 ```sh
-ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
+claude plugin marketplace add kmjak/flow-command
+claude plugin install flow@flow-command
 ```
 
-`-n` を付けないと、既にリンクがある状態で再実行したときにリンク先ディレクトリの中へ `flow` という循環リンクが作られ、スキルの読み込みが壊れるので注意。
+セッションの中では `/plugin marketplace add kmjak/flow-command` → `/plugin install flow@flow-command` でもよい。次に起動するセッションから使える。
 
-リンクなので、このリポジトリで `SKILL.md` を編集すればそのまま全プロジェクトに反映される。
+plugin には次のものが入っている。個別に導入・登録するものは無い。
 
-dev の Review で使う 2 つの reviewer agent（`agents/flow-reviewer.md`：合意とのズレ、`agents/flow-quality-reviewer.md`：品質）も同じようにリンクする。agent はスキルのディレクトリに同梱できないため、別に導入が必要。
+| 部品 | 場所 | 内容 |
+|------|------|------|
+| スキル `/flow` | `skills/flow/` | `SKILL.md`（共通規約とモードの振り分け）、`modes/*.md`（各モードの手順。起動したモードの分だけ読む）、`references/`（GitHub 連携・フェーズの戻し方）、`scripts/`（id・状態ファイル・検証・issue 同期・hook など、結果が 1 つに決まる処理）、`templates/`（init が対象プロジェクトに入れる PR テンプレートと GitHub Actions） |
+| agent `flow:reviewer`・`flow:quality-reviewer` | `agents/` | dev の Review で使う（合意とのズレ／品質） |
+| hook | `hooks/hooks.json` | `guard.sh`（PreToolUse）と `session-start.sh`（SessionStart）。下記「hook による強制」 |
+
+- スキルは `/flow`（正式な名前は `/flow:flow`。他に `/flow` という名前のスキルが無ければ短い方で呼べる）。
+- 更新は `claude plugin marketplace update flow-command` → `claude plugin update flow@flow-command`（または `/plugin` の画面）で受け取る。`version` を上げたリリースだけが届く。
+
+### 旧方式（symlink）からの移行
+
+plugin にする前は、スキルと agent を `~/.claude/` に symlink し、hook を `~/.claude/settings.json` に登録していた。そのまま plugin を入れると、`/flow` が古いスキルに届いたり、hook が 2 回動いて確認画面が 2 度出たりするので、先に片付ける。
+
+1. symlink を消す：
+   ```sh
+   rm ~/.claude/skills/flow ~/.claude/agents/flow-reviewer.md ~/.claude/agents/flow-quality-reviewer.md
+   ```
+2. `~/.claude/settings.json` の `hooks.PreToolUse`・`hooks.SessionStart` から、コマンドに `flow/scripts/guard.sh`・`flow/scripts/session-start.sh` を含む要素を消す（`/flow init` を再実行すると、確認しながら片付けを手伝う）。
+3. 上の「導入」のとおり plugin を入れ、Claude Code を起動し直す。
+
+### flow 自体を開発する場合
+
+このリポジトリの作業ツリーを marketplace として追加すると、キャッシュを通さずにそのまま読み込まれ、編集が次のセッション（または `/reload-plugins`）から反映される。
 
 ```sh
-mkdir -p ~/.claude/agents
-ln -sfn "$(pwd)/agents/flow-reviewer.md" ~/.claude/agents/flow-reviewer.md
-ln -sfn "$(pwd)/agents/flow-quality-reviewer.md" ~/.claude/agents/flow-quality-reviewer.md
+claude plugin marketplace add ./          # このリポジトリのルートで
+claude plugin install flow@flow-command
 ```
 
-未導入のまま Review に入ると、flow は停止して導入を案内する（別の agent で代用はしない）。
+一度だけ試すなら `claude --plugin-dir <このリポジトリ>` でもよい。変更したら `claude plugin validate .` で manifest を確かめる。
 
-特定のプロジェクトだけで使いたい場合は、そのプロジェクトの `.claude/skills/flow/` に `skills/flow/` の中身（`SKILL.md`・`modes/`・`references/`・`scripts/`）をコピーし、reviewer agent は `.claude/agents/` にコピーする。
+### リリース
 
-hook（`guard.sh`・`session-start.sh`）は `/flow init` が登録を案内する（下記「hook による強制」）。
+`.claude-plugin/plugin.json` の `version` を上げたものが、利用者に届く新しい版になる（`version` を上げない変更は届かない）。hook は全セッションで動くので、作業途中の変更が届かないよう、リリースのときだけ上げる。上げた commit が `main` に入ったら、`claude plugin tag` で `flow--v<version>` のタグを作ってもよい（`plugin.json` と `marketplace.json` の食い違いも確かめてくれる）。
 
 ## 使い方
 
@@ -130,7 +152,7 @@ gates: [approach, plan, pr]   # 必ず止まるゲート（pr は常に止まる
 | 2 | Approach | 実装方針（選択肢・採用案・トレードオフ）を決めて合意する（確認は 1 回） |
 | 3 | Plan | ブランチ名・**受け入れ条件 → 確かめ方の対応表**（テスト名／手動確認）・順序付きの commit 分割を決める（v1 は単一ブランチ） |
 | 4 | Implement | 計画どおりに実装・commit する（commit ごとには止まらない）。テストは対応表に沿って書く。最後に `verify.sh` で検証コマンドを全て実行して通るまで直し、手動確認の項目を確かめる（Claude が確認できる手段があれば任せられる） |
-| 5 | Review | 2 つの reviewer agent を並列に起動する。`flow-reviewer` は実装の経緯を知らない状態で、実装と Approach / Plan（対応表）/ チケットの乖離（相違・未実装・合意外の変更）を、`flow-quality-reviewer` はバグ・セキュリティ・性能などの品質を調べる。どちらも Bash を持たず、`review-input.sh` が書き出した差分ファイルを読む。実装したセッションは指摘を消さずに推奨と根拠を添えるだけで、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れをユーザーが選ぶ |
+| 5 | Review | 2 つの reviewer agent を並列に起動する。`flow:reviewer` は実装の経緯を知らない状態で、実装と Approach / Plan（対応表）/ チケットの乖離（相違・未実装・合意外の変更）を、`flow:quality-reviewer` はバグ・セキュリティ・性能などの品質を調べる。どちらも Bash を持たず、`review-input.sh` が書き出した差分ファイルを読む。実装したセッションは指摘を消さずに推奨と根拠を添えるだけで、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れをユーザーが選ぶ |
 | 6 | PR | 明示的な確認の後にだけ push して PR を作成し、完了まで見届ける（flow はマージしない）。本文は PR テンプレートがあれば沿って書き、方針は結論と理由だけを書く。context と矛盾する変更なら、修正を同じ PR に入れるか尋ねる。`host: none` なら PR は出さず、確認の後に `default_branch` へ `git merge --no-ff` してブランチを削除する（コンフリクトしたら `--abort` して止まる） |
 
 ### 承認ゲート
@@ -152,14 +174,12 @@ gates: [approach, plan, pr]   # 必ず止まるゲート（pr は常に止まる
 
 ## hook による強制
 
-`/flow init` の案内で、次の 2 つを **`~/.claude/settings.json` に登録**する。settings.json に登録するので、`/flow` を起動していないセッションや `--resume` で再開したセッションでも効く。flow の run が関わる場所でだけ判定し、それ以外のコマンド・ブランチは素通しする。
+plugin の `hooks/hooks.json` に次の 2 つが入っている。plugin を有効にしていれば、`/flow` を起動していないセッションや `--resume` で再開したセッションでも効く。flow の run が関わる場所でだけ判定し、それ以外のコマンド・ブランチは素通しする。
 
-| hook | 登録先 | 内容 |
+| hook | イベント | 内容 |
 |------|--------|------|
 | `scripts/guard.sh` | PreToolUse（matcher `Bash\|Edit\|Write\|MultiEdit\|NotebookEdit\|mcp__.*`） | push・PR 作成・許可リスト外の git / gh 操作に**必ず確認画面を出す**。force push と `Closes` の無い PR をブロックする。Plan の承認前に `docs/` 以外を編集しようとしたら確認画面を出す |
 | `scripts/session-start.sh` | SessionStart（matcher `compact\|resume`） | 会話の要約・再開の後、進行中の run と、読み直す手順ファイル（`modes/dev.md`）を Claude に伝える |
-
-登録は、「自分で追記する」（Claude は settings.json を読まない）か「AI に任せる」（差分を見せて確認を取ってから、バックアップを取って追記する）かを選べる。手で追記する場合の JSON は `skills/flow/modes/init.md` の「hook の登録」にある。反映は次に起動するセッションから。以前の版で `"matcher": "Bash"` として登録している場合は、matcher を上記に変える。
 
 `guard.sh` の判定：
 
@@ -178,7 +198,7 @@ gates: [approach, plan, pr]   # 必ず止まるゲート（pr は常に止まる
 - `jq` が無くても flow と無関係なリポジトリ・ブランチには影響しない。flow のブランチでは、詳しく判定できないので push らしいコマンドに確認画面を出す（許可リスト・MCP・編集の判定は jq が無いと行わない）。
 - 止めるのは Claude のツール呼び出しだけで、ユーザーが自分で実行する git / gh は止めない。
 - **事故防止の仕組みであって、完全な防御ではない。** Claude が実行できるコマンドは、どんな検知もすり抜ける書き方ができる（スクリプトファイル経由など）。また、flow のブランチかどうかはセッションの作業ディレクトリで判定するので、`cd 別のリポジトリ && git push` や `git -C 別のパス push` は、その別のリポジトリとしては判定しない。確認画面で拒否されたら言い換えて再実行しないよう、SKILL.md で指示している。サーバー側で確実に守りたいことは、Actions（`flow-pr-link`）とブランチ保護で守る。
-- 登録しない場合、ゲートは SKILL.md の指示だけで守られる。
+- plugin を無効にすると hook も止まり、ゲートは SKILL.md の指示だけで守られる。
 
 ### テスト
 
@@ -201,7 +221,6 @@ bash tests/guard.test.sh && bash tests/scripts.test.sh
 - GitHub issue 以外のチケット／知識ソース（Jira / GitHub Projects / Confluence）
 - 複数ブランチ実行とサブチケット分割（`docs/flow/<ticket-id>/<subticket>.md`）
 - バックログ（チケットの分解・依存関係・優先度・次の 1 枚の提示）
-- plugin 化（skills・agents・hooks をまとめて配布し、symlink と settings.json への登録を不要にする）
 
 ## License
 
