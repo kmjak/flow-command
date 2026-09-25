@@ -118,7 +118,7 @@ commands:
 
 ## hook による強制
 
-`skills/flow/scripts/guard.sh` を PreToolUse hook として **`~/.claude/settings.json` に登録**すると、push・PR のゲートが指示ではなく仕組みで守られる。settings.json に登録するので、`/flow` を起動していないセッションや `--resume` で再開したセッションでも効く。flow のブランチ（`docs/flow/*/main.md` の `Branch` と一致するブランチ）でだけ判定し、それ以外のコマンド・ブランチは素通しする。
+`skills/flow/scripts/guard.sh` を PreToolUse hook として **`~/.claude/settings.json` に登録**すると、flow のブランチでの push・PR 作成に**必ず確認画面が出る**ようになる。Claude が承認を待たずに進んでも、ユーザーが画面で許可しない限り外には出ない。settings.json に登録するので、`/flow` を起動していないセッションや `--resume` で再開したセッションでも効く。flow のブランチ（`docs/flow/*/main.md` の `Branch` と一致するブランチ）でだけ判定し、それ以外のコマンド・ブランチは素通しする。
 
 登録は `/flow init` が案内する。個人設定なので、「自分で追記する」（Claude は settings.json を読まない）か「AI に任せる」（差分を見せて確認を取ってから、バックアップを取って追記する）かを選べる。手で追記する場合は、`hooks.PreToolUse` の配列に次の要素を足す（`hooks` が無ければ作る）。反映は次に起動するセッションから。
 
@@ -140,17 +140,27 @@ commands:
 }
 ```
 
-| ブロックするもの | 条件 |
-|------------------|------|
-| `gh pr create` | `Status` が `pr:awaiting-approval`（PR の確認ゲート）でない |
-| `gh pr create` | チケットに issue があるのに、本文（`--body` / `--body-file`）に `Closes #<番号>` が無い |
-| `git push` | `Status` が `pr:awaiting-approval`・`pr:awaiting-review`、または PR 作成済みの `pr:in-progress` 以外 |
-| `git push --force` 等 | 常に（`-f`・`--force-with-lease`・`+refspec` を含む）。必要ならユーザーが `! git push --force-with-lease` で自分で実行する |
+| 判定 | 対象 |
+|------|------|
+| **deny**（ブロック。理由は Claude に届く） | force push（`-f`・`--force-with-lease`・`+refspec` を含む）。必要ならユーザーが `! git push --force-with-lease` で自分で実行する |
+| **deny** | チケットに issue があるのに、本文（`--body` / `--body-file`）に `Closes #<番号>` の無い `gh pr create` |
+| **ask**（確認画面。理由はユーザーにだけ表示） | それ以外のすべての push・PR 作成。フェーズを問わない（PR ゲート前なら ⚠ 付きで表示し、途中のバックアップ push もユーザーが許可すればできる） |
 
-- 要 `jq`。無い場合は push / PR 作成だけを止めて、インストールを促す。
+- `permissionDecision: "ask"` は、`permissions.allow` に `git push` を入れていても、auto モードでも確認画面を出す。確認画面には Status・ブランチ・Base・（PR なら）`Closes #<番号>` が出る。
+- 検知はあえて広めにしている：正確なパターンに加えて、クォートを外したうえで `git` と `push`、`gh` と `pr create`、`gh api` と `pulls` の組み合わせを拾う（`bash -c "git push"`・`eval`・`env git push` など）。誤検知しても確認画面が出るだけ。
+- `jq` が無くても flow と無関係なリポジトリ・ブランチには影響しない。flow のブランチでは、詳しく判定できないので確認画面を出す。
 - 止めるのは Claude のツール呼び出しだけで、ユーザーが自分で実行する git / gh は止めない。
-- コマンド文字列からの判定なので、完全な防御ではない（スクリプト経由の push などは検出できない）。
+- **事故防止の仕組みであって、完全な防御ではない。** Claude が実行できるコマンドは、どんな検知もすり抜ける書き方ができる（スクリプトファイル経由など）。確認画面で拒否されたら言い換えて再実行しないよう、SKILL.md で指示している。
 - 登録しない場合、ゲートは SKILL.md の指示だけで守られる。
+
+### テスト
+
+guard の判定は `tests/guard.test.sh` で確かめる（一時ディレクトリにリポジトリと状態ファイルを作り、hook と同じ JSON を流して pass / ask / deny を見る）。GitHub Actions では Linux で実行する。macOS の bash 3.2 でも動くことは手元で確かめる。
+
+```sh
+bash tests/guard.test.sh
+/bin/bash tests/guard.test.sh   # macOS: bash 3.2
+```
 
 ## 注意
 
@@ -162,3 +172,7 @@ commands:
 
 - GitHub issue 以外のチケット／知識ソース（Jira / GitHub Projects / Confluence）
 - 複数ブランチ実行とサブチケット分割（`docs/flow/<ticket-id>/<subticket>.md`）
+
+## License
+
+[MIT](LICENSE)
