@@ -126,63 +126,24 @@
     - **取り込まない** — 何もしない。
 12. **PR テンプレート**（`host: github` のときだけ）：dev の PR フェーズは、PR テンプレートがあればその見出しに沿って本文を書く。
     - まずテンプレートがあるか確かめる（`.github/pull_request_template.md`・`.github/PULL_REQUEST_TEMPLATE.md`・`.github/PULL_REQUEST_TEMPLATE/`・`docs/pull_request_template.md`・ルートの `pull_request_template.md`）。
-    - AskUserQuestion で、flow 用の項目を入れるかを尋ねる（「入れる（推奨）」「入れない」）。flow 用の項目は `${CLAUDE_SKILL_DIR}/templates/pull_request_template.md`（概要・方針・受け入れ条件・検証・関連。見出しとコメントはドキュメント言語に訳す）。
+    - AskUserQuestion で、flow 用の項目を入れるかを尋ねる（「入れる（推奨）」「入れない」）。flow 用の項目は `<skill>/templates/pull_request_template.md`（概要・方針・受け入れ条件・検証・関連。見出しとコメントはドキュメント言語に訳す）。
     - **入れる・無い** — `.github/pull_request_template.md` として新しく作る。
     - **入れる・ある** — 既存の内容は一切変えず、既存のテンプレートに**無い見出しだけ**を末尾に追記する。追記する差分を示し、確認を得てから書く（上書きはしない）。
     - **入れない** — 何もしない。
 13. **GitHub Actions**（`tracker: github` のときだけ。`references/github.md`「GitHub Actions」）：ローカルで `/flow` を実行しなくても issue の状態がずれないように、サーバー側の workflow を入れるか尋ねる。AskUserQuestion（複数選択）で、既に `.github/workflows/` にあるものを除いて尋ねる：
     - **`flow-issue-sync`（推奨）** — PR が開いたら issue を `flow:in-review` に、マージされたら閉じる。
     - **`flow-pr-link`（推奨）** — `<id>-` ブランチの PR に `Closes #<番号>` があるかを検査する。必須チェックにする場合は、ユーザーがブランチ保護で設定する（flow は設定しない）ことを伝える。
-    - **`flow-issue-guard`（推奨）** — issue が GitHub 上で直接編集されたら `flow:out-of-sync` を付ける。`${CLAUDE_SKILL_DIR}/scripts/ticket-hash.sh` を `.github/flow/ticket-hash.sh` にもコピーする。
-    - 選ばれたものを `${CLAUDE_SKILL_DIR}/templates/github/` から `.github/workflows/` にそのままコピーする（内容は変えない）。作るファイルを一覧で示し、確認を得てから作る。flow を更新しても、コピーした workflow は自動では更新されないことを伝える。
+    - **`flow-issue-guard`（推奨）** — issue が GitHub 上で直接編集されたら `flow:out-of-sync` を付ける。`<skill>/scripts/ticket-hash.sh` を `.github/flow/ticket-hash.sh` にもコピーする。
+    - 選ばれたものを `<skill>/templates/github/` から `.github/workflows/` にそのままコピーする（内容は変えない）。作るファイルを一覧で示し、確認を得てから作る。flow を更新しても、コピーした workflow は自動では更新されないことを伝える。
 14. **CI**（`host: github` で `commands` が `{}` でないときだけ）：`.github/workflows/` に、検証コマンドを実行している workflow が無ければ、作るか尋ねる。CI と dev の検証を同じ内容に揃えるため。
-    - 作るなら `${CLAUDE_SKILL_DIR}/templates/github/flow-ci.yml` を下敷きにして、ユーザーと一緒に埋める：`__DEFAULT_BRANCH__` は `repository.default_branch`、`__COMMANDS__` は `commands` を書いた順に 1 ステップずつ、`__SETUP__`（言語のセットアップ・依存のインストール）はプロジェクトのファイル（`package.json` のロックファイル・`.nvmrc`・`pyproject.toml`・`go.mod` など）から候補を作って確認する。**確認していないセットアップ手順を推測で書かない。**
+    - 作るなら `<skill>/templates/github/flow-ci.yml` を下敷きにして、ユーザーと一緒に埋める：`__DEFAULT_BRANCH__` は `repository.default_branch`、`__COMMANDS__` は `commands` を書いた順に 1 ステップずつ、`__SETUP__`（言語のセットアップ・依存のインストール）はプロジェクトのファイル（`package.json` のロックファイル・`.nvmrc`・`pyproject.toml`・`go.mod` など）から候補を作って確認する。**確認していないセットアップ手順を推測で書かない。**
     - 全文を示し、確認を得てから `.github/workflows/flow-ci.yml` に書く。
-15. **reviewer agent**：利用できる agent に `flow-reviewer` と `flow-quality-reviewer`（dev の Review で使う）が無ければ、README の導入手順を案内する（init を止める必要はない。dev の Review までに導入すればよい）。
-16. **hook の登録**：次の 2 つの hook は、ユーザー設定 `~/.claude/settings.json` に登録して初めて有効になる。ユーザーの個人設定なので、**ユーザーが選ぶまで `~/.claude/settings.json` を読まない・書かない。**
-    - `scripts/guard.sh`（PreToolUse）— flow のブランチと Base での push・PR 作成・許可リスト外の git / gh 操作・GitHub MCP の書き込みに確認画面を出し、force push と `Closes` の無い PR を止める。Plan の承認前に `docs/` 以外を編集しようとしたときも確認画面を出す。
-    - `scripts/session-start.sh`（SessionStart）— 会話の要約・再開の後に、進行中の run と読み直すファイルを伝える。
-
-    AskUserQuestion で次から選んでもらう：
-    - **登録済み** — 何もしない。
-    - **自分で追記する** — 下記の JSON と追記先（`~/.claude/settings.json` の `hooks.PreToolUse` と `hooks.SessionStart`。既にあれば、その配列に要素を 1 つずつ足す）を示すだけにする。ファイルは読まない。
-    - **AI に任せる** — `~/.claude/settings.json` を読む。既に `guard.sh` が `"matcher": "Bash"` で登録されていれば（古い登録）、matcher を下記に変える差分を示す。`session-start.sh` が無ければ足す。それ以外の設定は一切変えずに、結果（差分）を示し、確認を得てから書く。書く前に `~/.claude/settings.json.bak` にバックアップを取る。ファイルが無ければ新しく作る。JSON は手で書き換えず `jq` で組み立て、書いた後に `jq empty` で壊れていないことを確かめる。
-    - **後回しにする** — 登録しないと push・PR・マージの確認は指示だけで守られる（Claude が確認を飛ばしても止まらない）ことを伝える。
-
-    どれを選んでも、登録は**次に起動するセッションから**有効になることを伝える。
-
-    あわせて `command -v jq` で jq があるか確かめる。無ければインストール（例：`brew install jq`）を案内する。jq が無くても flow と無関係なリポジトリやブランチには影響しないが、flow のブランチでは push・PR 作成かどうかを詳しく判定できず、Bash の push らしいコマンドのたびに確認画面が出る。許可リスト・MCP・編集の判定は jq が無いと行わない。
-
-    追記する要素（`f=…` は、個人スキル（`~/.claude/skills/flow`）とプロジェクトのスキル（`.claude/skills/flow`）のどちらでも動くようにするため）：
-
-    ```json
-    {
-      "hooks": {
-        "PreToolUse": [
-          {
-            "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__.*",
-            "hooks": [
-              {
-                "type": "command",
-                "command": "f=\"$HOME/.claude/skills/flow/scripts/guard.sh\"; [ -f \"$f\" ] || f=\"$CLAUDE_PROJECT_DIR/.claude/skills/flow/scripts/guard.sh\"; exec bash \"$f\""
-              }
-            ]
-          }
-        ],
-        "SessionStart": [
-          {
-            "matcher": "compact|resume",
-            "hooks": [
-              {
-                "type": "command",
-                "command": "f=\"$HOME/.claude/skills/flow/scripts/session-start.sh\"; [ -f \"$f\" ] || f=\"$CLAUDE_PROJECT_DIR/.claude/skills/flow/scripts/session-start.sh\"; exec bash \"$f\""
-              }
-            ]
-          }
-        ]
-      }
-    }
-    ```
+15. **古い導入の片付け**：reviewer agent と hook は flow plugin に同梱されている（plugin を有効にするだけで効く）。plugin にする前の方式（symlink とユーザー設定への hook の登録）が残っていると、同じスキルが 2 つになったり、hook が 2 回動いて確認画面が 2 度出たりする。次を確かめ、残っていれば片付けを提案する：
+    - `~/.claude/skills/flow`（symlink か、コピー）と、プロジェクトの `.claude/skills/flow` — あれば削除を提案する（`/flow` が plugin ではなく古いスキルに届くため）。
+    - `~/.claude/agents/flow-reviewer.md`・`~/.claude/agents/flow-quality-reviewer.md`（とプロジェクトの `.claude/agents/` の同名ファイル）— あれば削除を提案する。
+    - `~/.claude/settings.json` の hook に登録した `guard.sh`・`session-start.sh` — ユーザーの個人設定なので、**ユーザーが選ぶまで読まない・書かない。** AskUserQuestion で「確認して外す（AI に任せる）」「自分で外す」「登録していない」から選んでもらう。任せる場合は、`~/.claude/settings.json.bak` にバックアップを取り、`hooks.PreToolUse`・`hooks.SessionStart` から、コマンドに `flow/scripts/guard.sh`・`flow/scripts/session-start.sh` を含む要素だけを `jq` で取り除いた差分を示し、確認を得てから書く。書いた後に `jq empty` で壊れていないことを確かめる。
+    - 削除・変更するものは一覧で示し、確認を得てから行う。反映は次に起動するセッションから。
+16. **jq**：`command -v jq` で jq があるか確かめる。無ければインストール（例：`brew install jq`）を案内する。guard hook は jq が無いと、flow のブランチで push・PR 作成かどうかを詳しく判定できず（push らしいコマンドのたびに確認画面が出る）、許可リスト・MCP・編集の判定を行わない。GitHub 連携のスクリプト（`issue-sync.sh` など）は gh に同梱の jq 機能を使うので、jq が無くても動く。
 17. **まとめ**：作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
 18. **commit**：context が完成したら、init で作ったもの・変えたもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`・`LICENSE`・`CLAUDE.md`・PR テンプレート・`.github/workflows/flow-*.yml`・`.github/flow/ticket-hash.sh`・「チケット管理」で追跡から外したチケット）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する。
     - 「リポジトリ」でリポジトリを作り「push する」を選んだ場合だけ、commit の後に `git push -u origin <default_branch>` を行う（実行前にコマンドを示して確認を得る）。それ以外では push しない。

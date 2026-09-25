@@ -123,7 +123,7 @@ cancel・reset で、`main.md` の `## Approach` が書かれている run を�
 
 ## GitHub Actions（任意。`/flow init` で入れるか尋ねる）
 
-ローカルの flow は誰かが `/flow` を実行したときにしか動かないので、サーバー側で次の workflow を動かす。雛形は `${CLAUDE_SKILL_DIR}/templates/github/`（init が対象プロジェクトの `.github/` にコピーする）。
+ローカルの flow は誰かが `/flow` を実行したときにしか動かないので、サーバー側で次の workflow を動かす。雛形は `<skill>/templates/github/`（init が対象プロジェクトの `.github/` にコピーする）。
 
 | workflow | 起動するイベント | 内容 |
 |----------|------------------|------|

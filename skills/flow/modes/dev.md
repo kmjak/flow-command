@@ -148,15 +148,15 @@
 
 | agent | 見るもの |
 |-------|----------|
-| `flow-reviewer` | 合意（チケット・Approach・Plan の対応表）と実装のズレ：相違・未実装・合意外の変更 |
-| `flow-quality-reviewer` | 合意とは関係のない品質：バグ・セキュリティ・性能・エラー処理・テストの妥当性 |
+| `flow:reviewer` | 合意（チケット・Approach・Plan の対応表）と実装のズレ：相違・未実装・合意外の変更 |
+| `flow:quality-reviewer` | 合意とは関係のない品質：バグ・セキュリティ・性能・エラー処理・テストの妥当性 |
 
-1. **agent の確認**：利用できる agent に `flow-reviewer` と `flow-quality-reviewer` があることを確認する。無ければ停止し、README の導入手順（`agents/` のファイルを `~/.claude/agents/` に symlink するか、プロジェクトの `.claude/agents/` にコピーする）を案内する。**general-purpose など別の agent で代用しない**（レビューの基準が変わるため）。
+1. **agent の確認**：利用できる agent に `flow:reviewer` と `flow:quality-reviewer` があることを確認する（どちらも flow plugin に同梱されている）。無ければ停止し、flow plugin が有効になっているか（`/plugin`）を確かめるよう案内する。**general-purpose など別の agent で代用しない**（レビューの基準が変わるため）。
 2. **検証**の結果を用意する。`Implementation Log` の最新の `Verification @` が現在の HEAD（`git rev-parse --short HEAD`。`+dirty` 無し）に対するもので全て pass ならそれを使い、そうでなければ `verify.sh` を実行し直す。失敗があれば Review に進まず、`Status: implement:in-progress` に戻して Implement の「検証」で扱う。
 3. **レビューの入力を書き出す**：`bash <scripts>/review-input.sh <ticket-id> <Base>` を実行する。差分・commit 一覧・変更ファイル一覧のパスが出力される（`.git/flow/review/<ticket-id>/`。`docs/flow/` の外）。差分の中身をこのセッションで読む必要はない。
 4. **2 つの reviewer を並列に起動する**（1 つのメッセージで 2 つの Agent 呼び出し）。ラウンドごとに新しく起動する（前のラウンドの agent を使い回さない）。渡すのは次のものだけにする：
    - 両方に：3 のファイルのパス、検証の行、ドキュメント言語、前のラウンドまでに「受け入れ」と決まったその agent の指摘と理由（同じ指摘を繰り返させないため）
-   - `flow-reviewer` にだけ：チケットのパス（`docs/tickets/<ticket-id>.md`）、`## Approach` と `## Plan` の本文（そのまま貼る。対応表を含む）、手動確認の行
+   - `flow:reviewer` にだけ：チケットのパス（`docs/tickets/<ticket-id>.md`）、`## Approach` と `## Plan` の本文（そのまま貼る。対応表を含む）、手動確認の行
 
    **`## Research`・`## Implementation Log` の判断・実装中の経緯は渡さない**（実装者の意図に引きずられず、合意と成果物だけで判定させるため）。`docs/flow/` 配下のパスも渡さない。
 5. **結果を記録する**：`## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。各ラウンドには、検証の行と、両方の reviewer の指摘を**全件そのまま**載せる（指摘が無ければ「乖離なし」「問題なし」）。
@@ -178,7 +178,7 @@
 ### Round 1
 Verification @ a1b2c3d: test pass, lint pass
 
-#### 合意とのズレ（flow-reviewer）
+#### 合意とのズレ（flow:reviewer）
 - **R1 [未実装]** 受け入れ条件「…」に対応する処理が無い
   - 合意側：チケット 受け入れ条件 2
   - 実装側：該当する変更なし
@@ -186,7 +186,7 @@ Verification @ a1b2c3d: test pass, lint pass
   - 推奨：修正 — …
   - 決定：修正
 
-#### 品質（flow-quality-reviewer）
+#### 品質（flow:quality-reviewer）
 - **Q1 [バグ]** 空の配列で例外になる
   - 場所：src/foo.ts:42
   - 起きること：…
@@ -209,7 +209,7 @@ Verification @ a1b2c3d: test pass, lint pass
    - GitHub 連携なら、本文の末尾に **`Closes #<番号>` を必ず入れ**、作成の直前に issue からチケットを取ってくる（`references/github.md`「チケットを issue から取ってくる」）。変更があったら、PR を作らずに停止し、`references/rollback.md` でフェーズを戻すか尋ねる（実装が変更後のチケットを満たしているとは限らないため）。
    - **context の確認**（1 回だけ、軽く）：この変更が `docs/context/**` の記述と**矛盾する**か（ディレクトリ構成・アーキテクチャ・用語・技術スタックを変えた等）を確かめる。矛盾がある場合だけ、直す箇所を示し、この PR に最小限の修正 commit を足すか尋ねる。矛盾が無ければ何もしない（「context の更新は不要」と一行伝えるだけ）。網羅的に書き足す提案はしない（context は作ったら基本的にそれに準拠して進めるもので、頻繁な更新はコンフリクトの元になるため）。
 2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** このゲートは `gates` の設定や前段の自動通過に関係なく必ず発生する。勝手に push / PR しない。
-3. 確認されたら、`Status` は `pr:awaiting-approval` のまま push して PR を作成する（例：`gh pr create --body-file <一時ファイル>`。`--fill` は使わず本文を明示する）。guard hook が登録されていれば、push・PR 作成のたびにユーザーの確認画面が出る。**確認画面で拒否されたら、言い換えて再実行せず、停止して指示を待つ**（SKILL.md のガードレール）。GitHub 連携なら、作成後に issue との紐付けを確かめ（`references/github.md`「PR との紐付け」）、`issue-label.sh <番号> review` を実行する。
+3. 確認されたら、`Status` は `pr:awaiting-approval` のまま push して PR を作成する（例：`gh pr create --body-file <一時ファイル>`。`--fill` は使わず本文を明示する）。guard hook により、push・PR 作成のたびにユーザーの確認画面が出る。**確認画面で拒否されたら、言い換えて再実行せず、停止して指示を待つ**（SKILL.md のガードレール）。GitHub 連携なら、作成後に issue との紐付けを確かめ（`references/github.md`「PR との紐付け」）、`issue-label.sh <番号> review` を実行する。
 4. PR タイトル・向き先・URL を `## PR` に書き、`Status: pr:awaiting-review` にして URL を報告し、停止する。**この時点では `done` にしない。** レビューとマージは人が行うので、flow は待つだけ（flow は PR をマージしない）。ユーザーには、レビューが進んだら（1 人なら CI が通ったら）`/flow dev <ticket-id>` で再開するよう案内する。
 5. **PR の状況確認**（`pr:awaiting-review` から再開したとき）：`bash <scripts>/pr-status.sh <PR URL>` を実行する。1 行目が判定、2 行目以降が詳細。`docs/flow.config.yml` の `review.required`（無ければ `true`）と合わせて、次のとおり進む：
    - `merged` → `## PR` に結果を追記し、`Status: done` にする。GitHub 連携なら `references/github.md`「クローズ」に従って issue を閉じる。
@@ -232,7 +232,7 @@ push も PR も無い。Review の後、`Base`（`repository.default_branch`）�
 1. **マージの準備**：`Status: pr:in-progress` にする。中断からの再開で、ブランチが既に `Base` にマージ済み（`git merge-base --is-ancestor <branch> <Base>`）か削除済みなら、マージ commit を探して「マージの記録」へ進む。そうでなければマージの内容を準備して提示する：**ブランチ**・**マージ先**（`Base`）・取り込む commit の一覧（`git log --oneline <Base>..<branch>`）・実行するコマンド。上の「PR の準備」と同じく **context の確認**も行う。
    - `git switch <Base>` → `git merge --no-ff <branch> -m "Merge <ticket-id>: <チケットのタイトル>"` → `git branch -d <branch>`
    - `Base` に未コミットの変更があれば、先に示して止まる（勝手に stash しない）。
-2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** マージとブランチの削除は、この 1 回の確認でまとめて承認をもらう（guard hook を登録していれば、Base でのマージの前に確認画面も出る）。
+2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** マージとブランチの削除は、この 1 回の確認でまとめて承認をもらう（guard hook により、Base でのマージの前に確認画面も出る）。
 3. 確認されたら実行する。
    - **コンフリクトしたら**自分で解決しない。`git merge --abort` で元に戻し、コンフリクトしたファイルを示して停止し、指示を待つ（`Status` は `pr:awaiting-approval` のまま）。
    - ブランチの削除は `git branch -d`（マージ済みでなければ失敗する安全な削除）だけを使う。`-D` は使わない。

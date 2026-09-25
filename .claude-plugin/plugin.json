@@ -1,0 +1,10 @@
+{
+  "name": "flow",
+  "version": "1.2.0",
+  "description": "チケット単位で開発を回す /flow（init・new・edit・dev・reset・cancel）。Review 用の agent 2 つと、push・PR・マージを確認する hook を同梱する。",
+  "author": {
+    "name": "kmjak"
+  },
+  "repository": "https://github.com/kmjak/flow-command",
+  "license": "MIT"
+}
