@@ -9,13 +9,14 @@
 
 **GitHub 連携**（`ticket.tracker: github` で、チケットに `Issue: #<番号>` がある場合）：`references/github.md` の「事前チェック」を行い、issue の本文を同期する。以降、同ファイルの定めに従ってラベル・assignee・PR との紐付け・クローズを行う。`Issue:` 行が無いチケット（`local` の時代に作ったもの等）では issue の操作をしない。
 
+0. **キャンセル済みのチケット**（チケットに `Status: canceled`、または `main.md` の `Status` が `canceled`）なら、理由（`Reason:`）を示して止まる。やり直したいなら、新しいチケットを `/flow new` で作るよう伝える。
 1. **チケット id が無い**場合：尋ねる。進行中の run がちょうど 1 つなら、その再開を提案する（チケット id と Status を示す）。推測で決めない。
 2. **状態ファイル `docs/flow/<ticket-id>/main.md` が存在する**場合：読んで `Status` から再開する。
    - `<phase>:awaiting-approval` → そのフェーズの要約とゲートを再提示し、停止して待つ。
    - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。`pr:in-progress` の場合は、先にそのブランチの PR が既に存在しないか確認する（Phase 6 手順 1）。
    - `pr:awaiting-review` → PR の状況（レビュー・CI・コンフリクト）を確認する（Phase 6 手順 5）。
-   - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない。GitHub 連携で、PR がマージ済みなのに issue が開いたままなら、閉じるか尋ねる。
-3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止。GitHub 連携で issue だけが存在する場合は `references/github.md` の「手元にチケットが無い場合」）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し（ヘッダ表の `Issue` にはチケットの `Issue:` の値を、無ければ `—` を書く）、GitHub 連携なら issue を `flow:in-progress` にして assignee に自分を追加する（他の人が assign されていたら、作成前に停止して尋ねる）。そのうえで Phase 1 を開始する。
+   - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない（やり直すなら新しいチケットを作る）。GitHub 連携で、PR がマージ済みなのに issue が開いたままなら、閉じるか尋ねる。
+3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止。GitHub 連携で issue だけが存在する場合は `references/github.md` の「手元にチケットが無い場合（復元）」で復元してから続ける）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し（ヘッダ表の `Issue` にはチケットの `Issue:` の値を、無ければ `—` を書く）、GitHub 連携なら issue を `flow:in-progress` にして assignee に自分を追加する（他の人が assign されていたら、作成前に停止して尋ねる）。そのうえで Phase 1 を開始する。
 
 ## 状態ファイル `docs/flow/<ticket-id>/main.md`
 
@@ -92,7 +93,8 @@
 
 目的：方針を具体的なブランチ＋commit 計画に落とす。
 
-1. **ブランチ**（`<ticket-id>-<slug>`）、**Base**（分岐元であり PR の向き先。ユーザーの指定が無ければリモートのデフォルトブランチ＝`git symbolic-ref --short refs/remotes/origin/HEAD` の `origin/` を除いたもの）、**順序付きの commit 分割**（各 commit の目的とおおまかな範囲）を決める。
+1. **ブランチ**（`<ticket-id>-<slug>`）、**Base**（分岐元であり PR の向き先。`host: none` ではマージ先。ユーザーの指定が無ければ `docs/flow.config.yml` の `repository.default_branch`、それも無ければ `git symbolic-ref --short refs/remotes/origin/HEAD` の `origin/` を除いたもの）、**順序付きの commit 分割**（各 commit の目的とおおまかな範囲）を決める。
+   - そのブランチ名が既に存在し、この run のものでない（`/flow reset` で残した前の run のブランチなど）場合は、別の名前（例：末尾に `-2`）にする。
 2. **v1 は単一ブランチ。** 1 ブランチに収まらないなら、それはサブチケットに分割すべき＝ v2 の機能。v1 では**ユーザーに指摘して**一緒にチケットを絞る。自動分割やサブチケット自動生成はしない。
    - チケットファイル（`docs/tickets/<ticket-id>.md`）が Base で未コミット（未追跡、または変更あり）なら、commit 分割の**先頭**に「チケットの追加」の commit を入れる。
 3. ブランチ・Base・commit 一覧を `## Plan` に書き、ヘッダ表の `Branch` と `Base` も埋める。
@@ -176,10 +178,12 @@ Verification @ a1b2c3d: test pass, lint pass
 
 目的：明示的な確認の後にだけ PR を出し、レビュアーの Approve まで見届ける。
 
+`repository.host` が `none`（GitHub を使わない）なら、PR は出さずに下記「ローカルのみの場合」で進める。以下の手順 1〜5 は `host: github` の場合。
+
 1. `Status: pr:in-progress` にする。まず、そのブランチの PR が既に存在しないか確認する（`gh pr list --head <branch> --state all`）。中断からの再開で既に作成済みなら、新しく作らずに URL を `## PR` に記録し、`Status: pr:awaiting-review` にして手順 5 へ進む。
    無ければ PR を準備し、取り返しのつかない操作の前に提示する：**ブランチ**・**向き先ブランチ**（ヘッダ表の `Base`）・**PR タイトル**・変更概要（PR 本文の下書き）。タイトルと本文はドキュメント言語で書く。GitHub 連携なら、本文の末尾に **`Closes #<番号>` を必ず入れ**、作成の直前に issue の本文を同期する。
 2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** このゲートは前段を飛ばしてきても必ず発生する。勝手に push / PR しない。
-3. 確認されたら、`Status` は `pr:awaiting-approval` のまま push して PR を作成する（例：`gh pr create`。`--fill` は使わず本文を明示する）。guard hook が登録されていれば、push・PR 作成はこの Status でだけ許可される（SKILL.md のガードレール）。GitHub 連携なら、作成後に issue との紐付けを確かめ（`references/github.md` の「PR との紐付け」）、issue を `flow:in-review` にする。
+3. 確認されたら、`Status` は `pr:awaiting-approval` のまま push して PR を作成する（例：`gh pr create`。`--fill` は使わず本文を明示する）。guard hook が登録されていれば、push・PR 作成のたびにユーザーの確認画面が出る。**確認画面で拒否されたら、言い換えて再実行せず、停止して指示を待つ**（SKILL.md のガードレール）。GitHub 連携なら、作成後に issue との紐付けを確かめ（`references/github.md` の「PR との紐付け」）、issue を `flow:in-review` にする。
 4. PR タイトル・向き先・URL を `## PR` に書き、`Status: pr:awaiting-review` にして URL を報告し、停止する。**この時点では `done` にしない。** レビューは人が行うので、flow は待つだけ。ユーザーには、レビューが進んだら `/flow dev <ticket-id>` で再開するよう案内する。
 5. **PR の状況確認**（`pr:awaiting-review` から再開したとき）：このスキルのディレクトリにある `scripts/pr-status.sh <PR URL>` を実行する。1 行目が判定、2 行目以降が詳細。判定ごとに次のとおり進む（`done` にしてよいのは `approved` と `merged` だけ）：
    - `approved`（Approve 済み・CI 全て成功・コンフリクトなし）または `merged` → `## PR` に結果を追記し、`Status: done` にする。GitHub 連携なら `references/github.md` の「クローズ」に従う（`merged` なら閉じる。`approved` ではまだ閉じない）。
@@ -190,3 +194,17 @@ Verification @ a1b2c3d: test pass, lint pass
    - `closed`（マージされずにクローズ）→ 報告し、どうするか尋ねる。勝手に `done` にしない。
 
    `conflict`・`ci_failing`・`changes_requested` への対応はブランチに commit し、`## Implementation Log` に「PR 対応：<判定>」として記録する。push の前に**検証**（Phase 4）を行い、変更内容と検証結果を提示して**停止し、確認を得てから push する**。push したら `Status: pr:awaiting-review` に戻して停止する。対応が方針や計画の変更を伴う大きさなら、その場で直さずに停止し、Approach／Implement に戻るかユーザーに尋ねる。
+
+### ローカルのみの場合（`repository.host: none`）
+
+push も PR も無い。Review の承認後、`Base`（`repository.default_branch`）へローカルでマージして終える。PR が無いので、マージ commit を「このチケットでまとめて入った変更」の記録にする。
+
+1. `Status: pr:in-progress` にする。中断からの再開で、ブランチが既に `Base` にマージ済み（`git merge-base --is-ancestor <branch> <Base>`）か削除済みなら、マージ commit を探して手順 4 へ進む。そうでなければマージの内容を準備して提示する：**ブランチ**・**マージ先**（`Base`）・取り込む commit の一覧（`git log --oneline <Base>..<branch>`）・実行するコマンド。
+   - `git switch <Base>` → `git merge --no-ff <branch> -m "Merge <ticket-id>: <チケットのタイトル>"` → `git branch -d <branch>`
+   - `Base` に未コミットの変更があれば、先に示して止まる（勝手に stash しない）。
+2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** マージとブランチの削除は、この 1 回の確認でまとめて承認をもらう。
+3. 確認されたら実行する。
+   - **コンフリクトしたら**自分で解決しない。`git merge --abort` で元に戻し、コンフリクトしたファイルを示して停止し、指示を待つ（`Status` は `pr:awaiting-approval` のまま）。
+   - ブランチの削除は `git branch -d`（マージ済みでなければ失敗する安全な削除）だけを使う。`-D` は使わない。
+4. `## PR` にマージ先・マージ commit の hash・削除したブランチを書き、`Status: done` にして報告する。
+

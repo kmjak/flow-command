@@ -1,7 +1,7 @@
 ---
 name: flow
-description: チケット単位で開発を回すフレームワーク。/flow で明示起動する。モードは init（docs 雛形・検証コマンド・commit 規約・チケット管理（ローカル or GitHub issue）を設定し、context を対話で作るか雛形だけ用意する）、new（チケットを対話で作る。GitHub 連携時は issue も作り、issue 番号から id を決める）、dev（1 チケットを 6 フェーズ Research → Approach → Plan → Implement → Review → PR で進める）。dev の進捗は docs/flow/<ticket-id>/main.md に集約するので、途中で止めても同じフェーズから再開できる。
-argument-hint: "[init | new [作りたいもの] | dev <ticket-id>]"
+description: チケット単位で開発を回すフレームワーク。/flow で明示起動する。モードは init（docs 雛形・検証コマンド・commit 規約・チケット管理（ローカル or GitHub issue）を設定し、context を対話で作るか雛形だけ用意する）、new（チケットを対話で作る。GitHub 連携時は issue も作り、issue 番号から id を決める）、edit（チケットを編集し、進行中の run はフェーズを戻す）、dev（1 チケットを 6 フェーズ Research → Approach → Plan → Implement → Review → PR で進める）、reset（run を捨てて最初からやり直す）、cancel（チケットをキャンセル済みにする）。dev の進捗は docs/flow/<ticket-id>/main.md に集約するので、途中で止めても同じフェーズから再開できる。
+argument-hint: "[init | new [作りたいもの] | edit <ticket-id> | dev <ticket-id> | reset <ticket-id> | cancel <ticket-id>]"
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep
 ---
@@ -16,22 +16,27 @@ allowed-tools: Read, Glob, Grep
 |------|--------|------|------|
 | `/flow init` | init | プロジェクト（最初に 1 回） | docs の雛形作成と `docs/context/` の作成（対話 or 自分で書く） |
 | `/flow new [作りたいもの]` | new | チケット（作るたび） | `docs/tickets/<ticket-id>.md` を対話で作る。id は自動で決まる（共通規約） |
+| `/flow edit <ticket-id>` | edit | チケット | 既存のチケットを対話で書き換える。進行中の run があれば、影響に応じてフェーズを戻す |
 | `/flow dev <ticket-id>` | dev | チケット（run ごと） | 6 フェーズで実装から PR まで進める |
+| `/flow reset <ticket-id>` | reset | run | run（`main.md`）を捨てて、次の dev で Research からやり直す |
+| `/flow cancel <ticket-id>` | cancel | チケット | チケットを `canceled` として残し、以後どのモードからも操作しない |
 | `/flow <それ以外>` | — | — | 実行しない。`/flow dev <ticket-id>` のことか確認する（下記） |
 | `/flow` | — | — | モードを選ばせる（下記） |
 
-**引数の解釈：** 先頭の語が `init` / `new` / `dev` ならそのモード。残りは、dev ではチケット id、new では作りたいものの説明（省略可）として扱う。
+**引数の解釈：** 先頭の語が `init` / `new` / `edit` / `dev` / `reset` / `cancel` ならそのモード。残りは、edit・dev・reset・cancel ではチケット id、new では作りたいものの説明（省略可）として扱う。
 先頭の語がモード名でない場合（例：`/flow 123`）は**何も実行しない**。「`/flow dev <引数>` のことですか？」とだけ尋ねて止まる（AskUserQuestion を使い、選択肢は「はい、dev で進める」と「いいえ」）。はいなら dev モードとして続け、いいえなら `/flow` の選択肢（下記）を提示する。ファイルの読み込みや作成は、確認が取れるまで行わない。
 
 ### 引数が無い場合（`/flow`）
 
-まず `docs/flow/*/main.md` を Glob して各 `Status` を読み、`done` 以外を進行中の run とする。
+まず `docs/flow/*/main.md` を Glob して各 `Status` を読み、`done`・`canceled` 以外を進行中の run とする。
 そのうえで、次の選択肢をユーザーに提示し（AskUserQuestion を使う）、選ばれたモードで続ける。推測で決めない。
 
 1. **進行中の flow を再開** — 進行中の run のチケット id と Status を説明に含める。**進行中の run が無ければこの選択肢は出さない**（残りの 3 つだけを提示する）。
 2. **dev：チケットを進める** — チケット id を尋ねる（`docs/tickets/*.md` を候補として示す）。
 3. **new：チケットを作る** — id は自動で決まるので尋ねない。
 4. **init：プロジェクトを初期化** — `docs/` が既にあれば、その旨を説明に含める。
+
+選択肢は 4 つまでなので、edit・reset・cancel は選択肢に入れない。質問文に「チケットの編集・run のやり直し・キャンセルは `/flow edit|reset|cancel <ticket-id>`」と添える（「その他」で入力されたらそのモードで続ける）。
 
 ### モードファイルの読み込み（必須）
 
@@ -41,9 +46,12 @@ allowed-tools: Read, Glob, Grep
 |--------|----------|
 | init | `modes/init.md` |
 | new | `modes/new.md` |
+| edit | `modes/edit.md` |
 | dev | `modes/dev.md` |
+| reset | `modes/reset.md` |
+| cancel | `modes/cancel.md` |
 
-`docs/flow.config.yml` の `ticket.tracker` が `github` なら、init・new・dev のいずれでも `references/github.md` も Read する（`local` なら読まない）。
+`docs/flow.config.yml` の `ticket.tracker` が `github` なら、どのモードでも `references/github.md` も Read する（`local` なら読まない）。
 
 以下の共通規約・行動原則・ガードレールは全モードに適用する。
 
@@ -80,11 +88,17 @@ allowed-tools: Read, Glob, Grep
     tracker: github   # github（issue と連携）| local（ローカルのみ）
     prefix: T
     pad: 6
+  repository:
+    host: github          # github（PR を出す）| none（ローカルのみ。Phase 6 はローカルでマージ）
+    default_branch: main  # Plan の Base の既定値。host: none ではマージ先
   ```
+- `repository` が無い（古い init で作った設定）場合は、`origin` が GitHub を指していれば `host: github`、そうでなければ `host: none` として扱い、`default_branch` は `git symbolic-ref --short refs/remotes/origin/HEAD` から取る（取れなければ Plan で尋ねる）。`/flow init` の再実行で設定できることを伝える。
+- `ticket.tracker: github` は `repository.host: github` のときだけ使える。
 - 上記パスは固定規約。`init` はこの規約どおりの雛形を作るだけで、パスの選択はしない。
 - 状態はあえて**フォルダ形式**（`docs/flow/<ticket-id>/main.md`）にしている。v2 の複数ブランチ対応で兄弟ファイル `docs/flow/<ticket-id>/<subticket>.md` を足すため。v1 では兄弟ファイルを作らない。
 - チケット id にファイルパスや git ブランチ名に使えない文字（空白、`/`、`#`、`~`、`^`、`:` など）が含まれる場合は、勝手に書き換えず、停止してユーザーにどうするか尋ねる。
 - どのモードでも、既存ファイルを黙って上書きしない。
+- **キャンセル済みのチケット**（チケットに `Status: canceled`、または `main.md` の `Status` が `canceled`）は、どのモードでも操作しない。その旨を伝えて止まる。
 
 ## 行動原則（全体を通して）
 
@@ -97,8 +111,10 @@ allowed-tools: Read, Glob, Grep
 ## ガードレール
 
 - dev の 1 run につき 1 チケット。作業が別チケットの範囲に広がりそうなら指摘する。
-- 明示的な確認なしに push / PR 作成をしない（Phase 6）。
-- **hook による強制**：`scripts/guard.sh` を `~/.claude/settings.json` の PreToolUse(Bash) hook として登録しておく（登録は `/flow init` で案内する）。登録すると `/flow` の起動や `--resume` に関係なく全セッションで効き、flow のブランチ（`main.md` の `Branch` と一致するブランチ）でだけ、Phase 6 の確認ゲートより前の `git push`・`gh pr create`、`Closes #<番号>` の無い PR 作成、force push をブロックする。**ブロックされたら、コマンドを言い換えるなどして回避しない。** 理由をユーザーに伝えて指示を待つ。
+- 明示的な確認なしに push / PR 作成 / マージをしない（Phase 6）。
+- **hook による強制**：`scripts/guard.sh` を `~/.claude/settings.json` の PreToolUse(Bash) hook として登録しておく（登録は `/flow init` で案内する）。登録すると `/flow` の起動や `--resume` に関係なく全セッションで効き、flow のブランチ（`main.md` の `Branch` と一致するブランチ）でだけ、push・PR 作成のたびにユーザーの確認画面を出し（フェーズを問わない）、force push と `Closes #<番号>` の無い PR 作成をブロックする。
+  - **ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。
+  - 確認画面はチャットでの承認の代わりではない。Phase 6 のゲートでは、これまでどおりチャットで確認を得てから push / PR 作成を実行する（確認画面はその後にもう一度出る）。
 - 外部システムの操作は、`ticket.tracker: github` のときの GitHub issue に対する、`references/github.md` に定めた操作だけにする。それ以外の外部システム（Jira など）にチケットを作らない。
 
 ## v1 の対象外（v2 送り）
