@@ -9,12 +9,13 @@
 
 **GitHub 連携**（`ticket.tracker: github` で、チケットに `Issue: #<番号>` がある場合）：`references/github.md` の「事前チェック」を行い、issue の本文を同期する。以降、同ファイルの定めに従ってラベル・assignee・PR との紐付け・クローズを行う。`Issue:` 行が無いチケット（`local` の時代に作ったもの等）では issue の操作をしない。
 
+0. **キャンセル済みのチケット**（チケットに `Status: canceled`、または `main.md` の `Status` が `canceled`）なら、理由（`Reason:`）を示して止まる。やり直したいなら、新しいチケットを `/flow new` で作るよう伝える。
 1. **チケット id が無い**場合：尋ねる。進行中の run がちょうど 1 つなら、その再開を提案する（チケット id と Status を示す）。推測で決めない。
 2. **状態ファイル `docs/flow/<ticket-id>/main.md` が存在する**場合：読んで `Status` から再開する。
    - `<phase>:awaiting-approval` → そのフェーズの要約とゲートを再提示し、停止して待つ。
    - `<phase>:in-progress` → そこまで書かれたセクションを読み直し（Implement ならブランチの `git log` / `git status` も確認）、そのフェーズを継続する。途中成果が信頼できなければやり直す。どちらにするかをユーザーに伝える。`pr:in-progress` の場合は、先にそのブランチの PR が既に存在しないか確認する（Phase 6 手順 1）。
    - `pr:awaiting-review` → PR の状況（レビュー・CI・コンフリクト）を確認する（Phase 6 手順 5）。
-   - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない。GitHub 連携で、PR がマージ済みなのに issue が開いたままなら、閉じるか尋ねる。
+   - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない（やり直すなら新しいチケットを作る）。GitHub 連携で、PR がマージ済みなのに issue が開いたままなら、閉じるか尋ねる。
 3. **状態ファイルが存在しない**場合：まず `docs/tickets/<ticket-id>.md` があることを確認する（無ければ Phase 1 手順 1 のとおり停止。GitHub 連携で issue だけが存在する場合は `references/github.md` の「手元にチケットが無い場合」）。次に `docs/flow/` が git で無視されているか確認する（`git check-ignore -q docs/flow/<ticket-id>/main.md`）。無視されていなければ、`.gitignore` への `docs/flow/` 追加を提案し、ユーザーの判断を待つ（理由は共通規約参照）。問題なければ下記テンプレートから `Status: research:in-progress` で作成し（ヘッダ表の `Issue` にはチケットの `Issue:` の値を、無ければ `—` を書く）、GitHub 連携なら issue を `flow:in-progress` にして assignee に自分を追加する（他の人が assign されていたら、作成前に停止して尋ねる）。そのうえで Phase 1 を開始する。
 
 ## 状態ファイル `docs/flow/<ticket-id>/main.md`
@@ -93,6 +94,7 @@
 目的：方針を具体的なブランチ＋commit 計画に落とす。
 
 1. **ブランチ**（`<ticket-id>-<slug>`）、**Base**（分岐元であり PR の向き先。`host: none` ではマージ先。ユーザーの指定が無ければ `docs/flow.config.yml` の `repository.default_branch`、それも無ければ `git symbolic-ref --short refs/remotes/origin/HEAD` の `origin/` を除いたもの）、**順序付きの commit 分割**（各 commit の目的とおおまかな範囲）を決める。
+   - そのブランチ名が既に存在し、この run のものでない（`/flow reset` で残した前の run のブランチなど）場合は、別の名前（例：末尾に `-2`）にする。
 2. **v1 は単一ブランチ。** 1 ブランチに収まらないなら、それはサブチケットに分割すべき＝ v2 の機能。v1 では**ユーザーに指摘して**一緒にチケットを絞る。自動分割やサブチケット自動生成はしない。
    - チケットファイル（`docs/tickets/<ticket-id>.md`）が Base で未コミット（未追跡、または変更あり）なら、commit 分割の**先頭**に「チケットの追加」の commit を入れる。
 3. ブランチ・Base・commit 一覧を `## Plan` に書き、ヘッダ表の `Branch` と `Base` も埋める。

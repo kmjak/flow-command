@@ -2,7 +2,7 @@
 
 チケット単位でアプリ開発を回す Claude Code スキル `/flow`。
 
-プロジェクト初期化（init）・チケット作成（new）・開発（dev）の 3 モードを持つ。dev では 1 つのチケットを 6 フェーズで進め、進捗を 1 ファイルに集約することで「途中で止めて後から再開」できるようにする。
+プロジェクト初期化（init）・チケット作成（new）・編集（edit）・開発（dev）・やり直し（reset）・キャンセル（cancel）のモードを持つ。dev では 1 つのチケットを 6 フェーズで進め、進捗を 1 ファイルに集約することで「途中で止めて後から再開」できるようにする。
 
 ```
 Research → Approach → Plan → Implement → Review → PR
@@ -36,7 +36,10 @@ ln -sfn "$(pwd)/agents/flow-reviewer.md" ~/.claude/agents/flow-reviewer.md
 ```
 /flow init                # プロジェクト初期化：docs 雛形・検証コマンド・commit 規約・チケット管理の設定 + context 作成（再実行しても安全）
 /flow new [作りたいもの]  # チケット作成：docs/tickets/<ticket-id>.md を対話で作る（id は自動。GitHub 連携なら issue も作る）
+/flow edit <ticket-id>    # チケットを編集。進行中の run があれば、影響に応じてフェーズを戻す
 /flow dev <ticket-id>     # 6 フェーズで実装から PR まで進める
+/flow reset <ticket-id>   # run を捨てて Research からやり直す（ブランチは消すか残すか尋ねる）
+/flow cancel <ticket-id>  # チケットを canceled として残し、以後操作しない（issue は not planned で閉じる）
 /flow                     # 再開 / dev / new / init を選択肢で表示（進行中の run が無ければ再開は出ない）
 ```
 
@@ -45,6 +48,7 @@ ln -sfn "$(pwd)/agents/flow-reviewer.md" ~/.claude/agents/flow-reviewer.md
 - モード名を付けない `/flow <ticket-id>` は実行せず、`/flow dev <ticket-id>` のことか確認するだけ。
 - dev は状態ファイルが既にあれば、その `Status` のフェーズから再開する。無ければ新規作成して Research から始める。
 - 典型的な流れ：`/flow init` → `/flow new` → `/flow dev <id>`
+- `done` と `canceled` のチケットは edit・reset・cancel できない（変えたいなら新しいチケットを作る）。
 - `/flow new` は commit しない。チケットは実装 PR の最初の commit として `/flow dev` の Implement で commit される（まとめて複数作っても、各チケットは自分の PR に入る）。
 
 ## 規約パス

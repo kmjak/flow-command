@@ -7,7 +7,7 @@
 - **正本はローカルのチケット（`docs/tickets/<ticket-id>.md`）。** issue はチケットから生成する一方通行の写しで、issue から チケットへは何も取り込まない。
 - issue に載せるのは、チケットの「要件」「受け入れ条件」と、ステータス（ラベル）・担当者（assignee）だけ。背景・対象外・未決事項・flow 状態（`main.md`）は載せない。
 - issue の**本文**は flow が上書きする。人が編集しても次の同期で消える（本文の冒頭でそう告知する）。**コメントは自由**で、flow はコメントを編集・削除しない。
-- flow が issue に対して行う操作は、下記の「作成」「本文の同期」「ラベルの付け替え」「assignee の設定」「クローズ」だけ。それ以外（他人のコメントの編集、タイトル以外のメタデータの変更、他の issue の操作など）はしない。
+- flow が issue に対して行う操作は、下記の「作成」「本文の同期」「ラベルの付け替え」「assignee の設定」「クローズ」だけ。PR に対しては、Phase 6 の作成・本文の修正と、reset・cancel でユーザーが選んだときのクローズ（`gh pr close`）だけ。それ以外（他人のコメントの編集、タイトル以外のメタデータの変更、他の issue の操作など）はしない。
 
 ## 番号と id の変換
 
@@ -45,7 +45,7 @@
 チケットから本文を生成し直し、`gh issue view <番号> --json body` の本文と違えば `gh issue edit <番号> --body-file <一時ファイル>` で置き換える。同じなら何もしない。タイトルが違えばタイトルも更新する。
 
 同期するタイミング：
-- new でチケットを編集したとき
+- edit でチケットを編集したとき
 - dev の開始時（新規・再開とも）
 - Phase 6 で PR を作成する直前
 
@@ -57,6 +57,8 @@
 | dev の開始（状態ファイルを新しく作るとき） | `flow:in-progress` | assignee に自分（`@me`）を追加 |
 | Phase 6 で PR を作成（`pr:awaiting-review`） | `flow:in-review` | — |
 | `done` | ラベルはそのまま | issue を閉じる（下記「クローズ」） |
+| `/flow reset` | `flow:todo` に戻す | assignee から自分を外す（`gh issue edit <番号> --remove-assignee @me`） |
+| `/flow cancel` | ラベルはそのまま | `gh issue close <番号> --reason "not planned" --comment "Canceled by /flow: <理由>"`（削除はしない） |
 
 - 付け替えるときは、`gh issue view <番号> --json labels,assignees,state` で現在の値を確かめ、**付いている** `flow:*` ラベルだけを外して新しいものを付ける（`gh issue edit <番号> --remove-label <旧> --add-label <新>`）。
 - **dev の開始時に、自分以外の assignee が付いていたら停止する。** 他の人が着手している可能性があるため、そのまま進めるかユーザーに尋ねる。
