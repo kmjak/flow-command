@@ -1,0 +1,20 @@
+name: test
+
+on:
+  push:
+    paths:
+      - "skills/flow/scripts/**"
+      - "tests/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "skills/flow/scripts/**"
+      - "tests/**"
+      - ".github/workflows/test.yml"
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash tests/guard.test.sh
