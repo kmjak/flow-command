@@ -3,13 +3,20 @@
 目的：このプロジェクトで `/flow` を使える状態にする。プロジェクトにつき最初に 1 回だけ実行する想定。チケット id は取らない（渡されたら無視せず、`/flow new <ticket-id>` の案内をする）。
 
 1. 現状を確認する：`docs/context/`・`docs/tickets/`・`docs/flow/` の有無と中身、git リポジトリかどうか、`docs/flow/` が無視されているか（`git check-ignore -q docs/flow/x`）。
-2. **ドキュメント言語を決める**（`docs/flow.config.yml` が既にあればその値を使い、尋ねない）：AskUserQuestion で「日本語（推奨・既定）」「English」を選択肢にして尋ねる（その他はユーザーが自由入力できる）。以降のチケットと `docs/context/**` はこの言語で書く。
-3. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
-   - `docs/context/`（中身は手順 4）
+   `docs/flow.config.yml` が既にある場合（再実行や、古い init で作った場合）は読み込み、**値があるキーは尋ねずにそのまま使う**。以降の手順は、値が無いキーについてだけ行い、既存のキーは書き換えない。
+2. **ドキュメント言語を決める**（`language`）：AskUserQuestion で「日本語（推奨・既定）」「English」を選択肢にして尋ねる（その他はユーザーが自由入力できる）。以降のチケットと `docs/context/**` はこの言語で書く。
+3. **検証コマンドを決める**（`commands`）：dev の Implement・Review で Claude が実行する、テスト・lint・型チェックなどのコマンド。
+   - 先にプロジェクトから候補を読み取る（`package.json` の scripts、`Makefile`、`justfile`、`Taskfile.yml`、`pyproject.toml`、`Cargo.toml`、`go.mod`、CI 設定（`.github/workflows/*`）など）。CI で実行しているコマンドがあれば優先して候補にする。
+   - 候補を出典のファイル付きで示し、どれを使うかをユーザーに確定してもらう。**確認なしに推測のコマンドを書かない。** 足りないものはユーザーに尋ねる。
+   - キー名は用途を表す短い名前（`test`・`lint`・`typecheck` など）にする。書いた順に実行する。
+   - 検証コマンドが無い（テストが無い等）場合は `commands: {}` と書き、その旨を伝える（dev は検証をスキップして、そのことを記録する）。
+   - 新たにラッパー（Makefile 等）は作らない。既存のコマンドをそのまま書く。
+4. 作成するものを一覧で提示してから作る（既にあるものは作らない・上書きしない）：
+   - `docs/context/`（中身は手順 5）
    - `docs/tickets/.gitkeep`
-   - `docs/flow.config.yml` — 手順 2 で決めた `language` を書く。
+   - `docs/flow.config.yml` — 手順 2・3 で決めた値を書く（既にあれば、足りないキーだけを追記する）。
    - `.gitignore` に `docs/flow/` を追加（既に無視されていれば何もしない。`.gitignore` が無ければ作る）。`docs/flow/` 自体は dev が必要になったときに作るので、ここでは作らない。
-4. **context を作る**：`docs/context/` に既にファイルがある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
+5. **context を作る**：`docs/context/` に既にファイルがある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
    - **対話で作る** — 下記「対話で作る場合」の手順で、各項目の内容をユーザーと一緒に決めて `docs/context/overview.md` を書く。
    - **自分で作る** — 下記テンプレートの見出しと記入ガイドだけを入れた `docs/context/overview.md` を作り、中身はユーザーが書く。こちらからは内容を埋めない。
 
@@ -45,8 +52,8 @@
    ```
 
    対話で作った場合、完成したファイルには記入ガイドのコメントを残さない。自分で作る場合はコメントを残す（書くときのガイドになるため）。
-5. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
-6. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージを提示し、確認を得てから commit する（push はしない）。
+6. 作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/flow new` に進むよう促す。
+7. **commit**：context が完成したら、init で作ったもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`）をまとめて commit する。対象ファイルと commit メッセージを提示し、確認を得てから commit する（push はしない）。
    - 自分で作る場合は、ユーザーが `overview.md` を書き終えてから commit するか、雛形のまま今 commit するかを尋ねる。
    - init が作ったもの以外の変更は commit に含めない。
-7. 次の一手として `/flow new <ticket-id>` を案内する。
+8. 次の一手として `/flow new <ticket-id>` を案内する。

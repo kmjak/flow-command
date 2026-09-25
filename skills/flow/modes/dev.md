@@ -104,23 +104,37 @@
 2. 承認済みブランチ上で、承認済みの commit 分割に従って実装・commit する。先頭がチケットの commit なら、`docs/tickets/<ticket-id>.md` だけを commit する（他のチケットは含めない）。commit ごとの承認では止めない。
 3. commit を積むごとに `## Implementation Log`（commit hash とメッセージ、実装中の重要な判断）と `Updated` を更新する。
 4. 承認された計画どおりに進められないと分かったら（ある commit を大きく変える必要がある、方針が誤っていた等）、停止して提起する。これは小さな確認ではなく本当の判断事項。
-5. 計画した commit を全て終えたら `Status: implement:awaiting-approval` にして、作ったものを要約し、停止。
+5. 計画した commit を全て終えたら**検証**（下記）を行う。通ったら `Status: implement:awaiting-approval` にして、作ったもの（検証結果を含む）を要約し、停止。
 
-**Review からの差し戻しで戻ってきた場合**（Phase 5 で「修正」と決まった乖離がある）：直すのは `## Review` の最新ラウンドで「修正」とされた項目だけにする。それ以外に手を広げない。修正の commit は `## Implementation Log` に「Review Round N の修正」として記録する。終わったら Implement のゲートは挟まずに `Status: review:in-progress` にして Review へ戻る（直後に Review のゲートがあるため）。
+**Review からの差し戻しで戻ってきた場合**（Phase 5 で「修正」と決まった乖離がある）：直すのは `## Review` の最新ラウンドで「修正」とされた項目だけにする。それ以外に手を広げない。修正の commit は `## Implementation Log` に「Review Round N の修正」として記録する。修正後に検証を行う。終わったら Implement のゲートは挟まずに `Status: review:in-progress` にして Review へ戻る（直後に Review のゲートがあるため）。
+
+### 検証
+
+`docs/flow.config.yml` の `commands` を、書かれた順にリポジトリのルートで全て実行する。実装の途中で個別のテストを実行するのは自由だが、ゲートの前には必ずこの全件を実行する。
+
+- 結果を `## Implementation Log` に `Verification @ <短い commit hash>: <キー> pass | fail …` の形で記録する。
+- **失敗したら**、このチケットの範囲内で原因を直して commit し（`Implementation Log` に記録）、全件を実行し直す。全て通るまでゲートに進まない。
+- 次の場合は直さずに停止し、ユーザーに判断を求める：
+  - `Base` でも同じく失敗する（既存の失敗。`git stash` などで作業を失わない方法で確かめる）
+  - 直すのにチケットの範囲外の変更や、方針・計画の変更が必要
+  - 環境の問題（依存が無い、サービスが起動していない等）で実行できない
+- **テストを通すために、テストの削除・スキップ・期待値の書き換え・lint の無効化をしない。** それが本当に正しい場合は、理由を示してユーザーの承認を得る。
+- `commands` が `{}` なら検証をスキップし、`Implementation Log` に「検証コマンドなし」と記録する。`commands` キー自体が無い（古い init で作った設定）場合は、`/flow init` を再実行すると追加できることを伝え、今回は検証なしで進めるか尋ねる。
 
 ## Phase 5 — Review（乖離チェック）
 
 目的：作ったものと意図のズレを検出する。
 
-1. 実装した変更（`git diff <Base>...HEAD`。`Base` はヘッダ表の値）を **Approach / Plan / チケット** と突き合わせる。両方向を見る：
+1. **検証**（Phase 4 の「検証」）の結果を用意する。`Implementation Log` の最新の検証が現在の HEAD に対するもので全て pass ならそれを使い、そうでなければ実行し直す。失敗があれば Review に進まず、`Status: implement:in-progress` に戻して Phase 4 の検証の手順で扱う。
+2. 実装した変更（`git diff <Base>...HEAD`。`Base` はヘッダ表の値）を **Approach / Plan / チケット** と突き合わせる。両方向を見る：
    - 合意と違う実装になっている点
    - 合意・チケットにあるのに未実装の点
-2. 結果を `## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。乖離一覧か「乖離なし」。
-3. 乖離があれば、項目ごとに対処をユーザーに選んでもらう（勝手に決めない。こちらの推奨があれば理由付きで示す）：
+3. 結果を `## Review` に**ラウンドとして追記する**（`### Round 1`、`### Round 2` …）。前のラウンドは書き換えない。乖離一覧か「乖離なし」。
+4. 乖離があれば、項目ごとに対処をユーザーに選んでもらう（勝手に決めない。こちらの推奨があれば理由付きで示す）：
    - **修正** — 実装が合意と違う／未実装。Implement に戻って直す。
    - **方針の見直し** — Approach 自体が誤っていた。Approach に戻る。
    - **受け入れ** — 実装のほうが妥当。直さず、理由をその項目に記録する。
-4. 決まった対処を各項目に記録し、次のとおり進む：
+5. 決まった対処を各項目に記録し、次のとおり進む：
    - 「方針の見直し」が 1 つでもある → `Status: approach:in-progress` にして Phase 2 へ。以降の Plan・Implement・Review も通常どおりゲートを通り直す（既存のセクションは消さずに更新する）。
    - 「修正」がある（方針の見直しは無い） → `Status: implement:in-progress` にして Implement へ（Phase 4 の「Review からの差し戻し」）。修正後に Review へ戻り、次のラウンドを行う。
    - 乖離なし、または全て「受け入れ」 → `Status: review:awaiting-approval` にして要約を出し、停止。
@@ -142,4 +156,4 @@
    - `pending`（未レビュー・CI 実行中など）→ その旨と詳細を伝え、`pr:awaiting-review` のまま停止する。`commented_by` がある（コメントだけのレビュー）場合は内容を示し、対応するかユーザーに尋ねる。
    - `closed`（マージされずにクローズ）→ 報告し、どうするか尋ねる。勝手に `done` にしない。
 
-   `conflict`・`ci_failing`・`changes_requested` への対応はブランチに commit し、`## Implementation Log` に「PR 対応：<判定>」として記録する。push の前に変更内容を提示して**停止し、確認を得てから push する**。push したら `Status: pr:awaiting-review` に戻して停止する。対応が方針や計画の変更を伴う大きさなら、その場で直さずに停止し、Approach／Implement に戻るかユーザーに尋ねる。
+   `conflict`・`ci_failing`・`changes_requested` への対応はブランチに commit し、`## Implementation Log` に「PR 対応：<判定>」として記録する。push の前に**検証**（Phase 4）を行い、変更内容と検証結果を提示して**停止し、確認を得てから push する**。push したら `Status: pr:awaiting-review` に戻して停止する。対応が方針や計画の変更を伴う大きさなら、その場で直さずに停止し、Approach／Implement に戻るかユーザーに尋ねる。

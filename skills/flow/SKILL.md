@@ -63,6 +63,9 @@ allowed-tools: Read, Glob, Grep
   ```yaml
   # /flow settings (shared, committed)
   language: ja   # ja | en | その他の言語名
+  commands:      # dev の検証で書いた順に実行する（init で決める。無ければ {}）
+    test: npm test
+    lint: npm run lint
   ```
 - 上記パスは固定規約。`init` はこの規約どおりの雛形を作るだけで、パスやソースの選択はしない（ソース選択は v2 送り）。
 - 状態はあえて**フォルダ形式**（`docs/flow/<ticket-id>/main.md`）にしている。v2 の複数ブランチ対応で兄弟ファイル `docs/flow/<ticket-id>/<subticket>.md` を足すため。v1 では兄弟ファイルを作らない。

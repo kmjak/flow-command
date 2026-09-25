@@ -52,6 +52,15 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 
 チケット本文と `docs/context/**` は `docs/flow.config.yml` の `language` で書く。既定は日本語で、`/flow init` のときに日本語／English／その他から選ぶ。flow 状態（`main.md`）の本文と PR のタイトル・本文も同じ言語で書く（見出し・`Status` の値は英語の固定キー）。
 
+検証コマンド（テスト・lint など）は `docs/flow.config.yml` の `commands` に書く。`/flow init` がプロジェクト（`package.json`・`Makefile`・CI 設定など）から候補を読み取り、ユーザーが確定したものだけを書く。dev は Implement の完了時と Review の開始時にこれを全て実行し、通るまでゲートに進まない。
+
+```yaml
+language: ja
+commands:
+  test: npm test
+  lint: npm run lint
+```
+
 `docs/flow/` は `.gitignore` に入れて git 管理しない（`/flow init` が追加する）。flow 状態は個人の作業記録であり、PR に含めるとレビュアーが検討過程に引っ張られてしまうため。
 
 ## フェーズ
@@ -61,7 +70,7 @@ ln -sfn "$(pwd)/skills/flow" ~/.claude/skills/flow
 | 1 | Research | チケットと `docs/context/**`・コードを読み、要求・制約・疑問点を整理する |
 | 2 | Approach | 実装方針（選択肢・採用案・トレードオフ）を決めて合意する |
 | 3 | Plan | ブランチ名と順序付きの commit 分割を決める（v1 は単一ブランチ） |
-| 4 | Implement | 計画どおりに実装・commit する（commit ごとには止まらない） |
+| 4 | Implement | 計画どおりに実装・commit する（commit ごとには止まらない）。最後に検証コマンドを全て実行し、通るまで直す |
 | 5 | Review | 実装と Approach / Plan / チケットの乖離を両方向でチェックし、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れを選ぶ |
 | 6 | PR | 明示的な確認の後にだけ push して PR を作成し、Approve・CI 成功・コンフリクトなしになるまで見届ける |
 
