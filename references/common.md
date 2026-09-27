@@ -16,7 +16,7 @@
 
 **チケット id の形式：** ローカルのチケットは `LT-<番号>`、GitHub issue のチケットは `GT-<番号>`。番号は 6 桁に 0 埋めする（`LT-000007`・`GT-000123`）。`GT-000123` は issue #123。番号が 6 桁を超えたら 0 埋めせずにそのまま使う。
 
-- **チケットの扱いは id の接頭辞で決まる**：`LT-` は手元のファイルが正本、`GT-` は issue が正本（`references/github.md`）。`.tixforge/config.yml` の `ticket.tracker` が決めるのは、create が次にどちらを作るかだけ。tracker を切り替えても、既存の `LT-` のチケットはそのまま `LT-` として完了まで進められる。
+- **チケットの扱いは id の接頭辞で決まる**：`LT-` は手元のファイルが正本、`GT-` は issue が正本（`references/github/`）。`.tixforge/config.yml` の `ticket.tracker` が決めるのは、create が次にどちらを作るかだけ。tracker を切り替えても、既存の `LT-` のチケットはそのまま `LT-` として完了まで進められる。
 - `LT-` の番号は `ticket-id.sh next`（`.tixforge/` と手元のブランチ名の最大の番号 + 1）。ローカルのチケットは 1 人・1 台で使う前提。`GT-` の番号は issue 番号（create で issue を作成して得る。複数人で作っても衝突しない）。
 
 **id は必ず `<scripts>/ticket-id.sh` で扱う**（手で 0 埋め・変換・解釈しない。シェルの算術に 0 埋めの数字を渡すと 8 進数になる）。出力はそのまま使う：
@@ -36,7 +36,7 @@
 |------|------|
 | サービス／ドメイン知識 | `docs/context/**`（必要な分だけ読む。git 管理する） |
 | tixforge 設定 | `.tixforge/config.yml`（git 管理する。チーム共通） |
-| チケット | `.tixforge/<ticket-id>/ticket.md`（**git 管理外**）— `LT-`：これが正本。`GT-`：issue から作る作業用のコピー（`references/github.md`） |
+| チケット | `.tixforge/<ticket-id>/ticket.md`（**git 管理外**）— `LT-`：これが正本。`GT-`：issue から作る作業用のコピー（`references/github/fetch.md`） |
 | run の状態 | `.tixforge/<ticket-id>/state.md`（**git 管理外**。`<scripts>/run-state.sh` で作り、ヘッダを更新する） |
 | ブランチ名 | `<ticket-id>-<slug>`（チケット id を接頭辞にする。slug は英小文字・数字・ハイフン） |
 
@@ -54,6 +54,7 @@
   repository:
     host: github          # github（PR を出す）| none（ローカルのみ。PR フェーズはローカルでマージ）
     base_branch: main  # Plan の Base の既定値。host: none ではマージ先
+    close_issues: merge   # Base が GitHub の default branch でないとき：merge（Base へのマージで閉じる）| release（default branch へのリリースで閉じる）
   review:
     required: true        # PR の Approve を必須にするか。1 人で開発するなら false
   gates: [approach, plan, pr]  # 必ず止まるゲート。pr は書かなくても必ず止まる（skills/dev/run.md「承認ゲート」）
@@ -76,7 +77,7 @@
 | `verify.sh` | 検証コマンドの実行と `Verification @ <hash>: …` の行の出力 |
 | `review-input.sh` | Review の agent に渡す差分・commit 一覧をファイルに書き出す |
 | `pr-status.sh` | PR の状況（レビュー・CI・コンフリクト）の判定 |
-| `issue-sync.sh` / `issue-label.sh` | GitHub issue との同期・ラベルと担当者（`references/github.md`） |
+| `issue-sync.sh` / `issue-label.sh` / `github-preflight.sh` | GitHub issue との同期・ラベルと担当者・事前チェック（`references/github/`） |
 | `project-status.sh` | 設定と進行中の run の一覧（起動時に上の「現在の状態」へ自動で入る） |
 
 ## 行動原則（全体を通して）
@@ -97,7 +98,7 @@
   - 同じ hook をユーザー設定（`~/.claude/settings.json`）にも登録していると 2 回動く。`/tixforge:project init` の「古い導入の片付け」で外す。
   - **ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。
   - 確認画面はチャットでの承認の代わりではない。PR フェーズのゲートでは、これまでどおりチャットで確認を得てから push / PR 作成を実行する（確認画面はその後にもう一度出る）。
-- 外部システムの操作は、`ticket.tracker: github` のときの GitHub issue に対する、`references/github.md` に定めた操作だけにする。それ以外の外部システム（Jira など）にチケットを作らない。
+- 外部システムの操作は、`GT-` のチケットの GitHub issue に対する、`references/github/` に定めた操作だけにする。issue のコメントは自由で、tixforge はコメントを編集・削除しない。それ以外の外部システム（Jira など）にチケットを作らない。
 
 ## v1 の対象外（v2 送り）
 

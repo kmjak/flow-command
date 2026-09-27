@@ -34,7 +34,7 @@ allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/project
 
 | 参照ファイル | 読むとき |
 |--------------|----------|
-| `${CLAUDE_PLUGIN_ROOT}/references/github.md` | 手順が指示したとき（`ticket.tracker` が `github` のとき） |
+| `${CLAUDE_PLUGIN_ROOT}/references/github/<名前>.md` | 手順が指示したファイルだけ（`tracker: github` のとき。`labels`・`actions`） |
 
 以下の共通規約は、このスキルのすべてに適用する。
 

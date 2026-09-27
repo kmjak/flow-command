@@ -44,7 +44,7 @@ allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/project
 
 | 参照ファイル | 読むとき |
 |--------------|----------|
-| `${CLAUDE_PLUGIN_ROOT}/references/github.md` | 手順が指示したとき（`GT-` のチケットを扱うとき。`tracker: github` の create を含む） |
+| `${CLAUDE_PLUGIN_ROOT}/references/github/<名前>.md` | 手順が指示したファイルだけ（`GT-` のチケットを扱うとき。`fetch`・`create`・`sync`・`labels`・`record`・`pr`） |
 | `${CLAUDE_PLUGIN_ROOT}/references/rollback.md` | チケットが変わり、進行中の run のフェーズを戻すか決めるとき（dev が指示する） |
 
 以下の共通規約は、このスキルのすべてに適用する。

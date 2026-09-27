@@ -59,9 +59,9 @@
    - **GitHub issue と連携する**（`tracker: github`）— create で issue を作り、issue 番号を id にする。issue が正本で、チケットの全文・ステータス（ラベル）・担当者を載せる。手元の `.tixforge/<id>/ticket.md` は issue から作る作業用のコピーで、git で管理しない。id は `GT-<issue 番号>`。public リポジトリでは背景や未決事項も公開されることを伝える（`references/github.md`）。
    - **ローカルのみ**（`tracker: local`）— id はローカルの連番（`LT-`）。チケットは `.tixforge/<id>/ticket.md` に置き、git で管理しない。作成者の手元にしか無く、他の人と共有できない（1 人・1 台で使う前提）ことを伝える。GitHub に PR を出す場合、受け入れ条件は PR 本文に転記される。
 
-   `github` の場合は（`ticket` が既に設定済みでも、再実行のたびに）`references/github.md` を Read して次を行う：
-   - **事前チェック**（`gh` があること・`gh auth status`・`gh repo view`）。`gh` が無ければインストールを、未認証なら `! gh auth login` の実行を案内し、ユーザーが済ませるのを待ってから確認し直す。どうしても済ませられなければ `local` にするか尋ねる。
-   - **ラベルを作る**：`gh label list` で既存のものを確かめ、無いものだけ（`tixforge:todo`・`tixforge:in-progress`・`tixforge:in-review`・`tixforge:out-of-sync`）を、意味（`references/github.md`「ラベルと担当者」）と一緒に一覧で示して確認を得てから `gh label create` で作る。
+   `github` の場合は（`ticket` が既に設定済みでも、再実行のたびに）次を行う：
+   - **事前チェック**：`bash <scripts>/github-preflight.sh`。`ok:` 以外なら出力を示し（gh のインストール、または `! gh auth login`）、ユーザーが済ませるのを待ってから確認し直す。どうしても済ませられなければ `local` にするか尋ねる。
+   - **ラベルを作る**：tixforge のラベル（`tixforge:todo`・`in-progress`・`in-review`・`merged`・`done`・`canceled`・`out-of-sync`）のうち無いものを、意味（`references/github/labels.md`）と一緒に一覧で示し、確認を得てから `bash <scripts>/issue-label.sh setup` で作る。
 7. **レビューの要否**（`review.required`）：AskUserQuestion で「1 人で開発しますか？」と尋ねる（`host: none` なら PR が無いので尋ねずに書かない）。
    - **1 人** — 既定を `required: false` にする。GitHub では自分の PR を Approve できないため、`true` のままだと PR が完了にならないことを伝える。CI 成功・コンフリクトなしで dev は完了にし、マージはユーザーが行う。
    - **複数人** — 既定を `required: true` にする（Approve 済み・CI 成功・コンフリクトなしで完了）。
@@ -126,10 +126,10 @@
     - **入れる・無い** — `.github/pull_request_template.md` として新しく作る。
     - **入れる・ある** — 既存の内容は一切変えず、既存のテンプレートに**無い見出しだけ**を末尾に追記する。追記する差分を示し、確認を得てから書く（上書きはしない）。
     - **入れない** — 何もしない。
-13. **GitHub Actions**（`tracker: github` のときだけ。`references/github.md`「GitHub Actions」）：ローカルで tixforge を実行しなくても issue の状態がずれないように、サーバー側の workflow を入れるか尋ねる。AskUserQuestion（複数選択）で、既に `.github/workflows/` にあるものを除いて尋ねる：
-    - **`tixforge-issue-sync`（推奨）** — PR が開いたら issue を `tixforge:in-review` に、マージされたら閉じる。
-    - **`tixforge-pr-link`（推奨）** — `<id>-` ブランチの PR に `Closes #<番号>` があるかを検査する。必須チェックにする場合は、ユーザーがブランチ保護で設定する（flow は設定しない）ことを伝える。
-    - **`tixforge-issue-guard`（推奨）** — issue が GitHub 上で直接編集されたら `tixforge:out-of-sync` を付ける。`<scripts>/ticket-hash.sh` を `.github/tixforge/ticket-hash.sh` にもコピーする。
+13. **GitHub Actions**（`tracker: github` のときだけ。`references/github/actions.md` を Read する）：ローカルで tixforge を実行しなくても issue の状態がずれないように、サーバー側の workflow を入れるか尋ねる。AskUserQuestion（複数選択）で、既に `.github/workflows/` にあるものを除いて尋ねる：
+    - **`tixforge-issue-sync`（推奨）** — PR が開いたら issue を `tixforge:in-review` に、マージされたら閉じて `tixforge:done` に（Base が default branch でないときは `repository.close_issues` に従う）。
+    - **`tixforge-pr-link`（推奨）** — `GT-<番号>-` ブランチの PR に `Closes #<番号>` があるかを検査する。必須チェックにする場合は、ユーザーがブランチ保護で設定する（flow は設定しない）ことを伝える。
+    - **`tixforge-issue-guard`（推奨）** — issue が GitHub 上で直接編集されたら `tixforge:out-of-sync` を付ける。`<scripts>/ticket-hash.sh` と `<scripts>/messages.yml` を `.github/tixforge/` にもコピーする。
     - 選ばれたものを `<plugin>/templates/github/` から `.github/workflows/` にそのままコピーする（内容は変えない）。作るファイルを一覧で示し、確認を得てから作る。flow を更新しても、コピーした workflow は自動では更新されないことを伝える。
 14. **CI**（`host: github` で `commands` が `{}` でないときだけ）：`.github/workflows/` に、検証コマンドを実行している workflow が無ければ、作るか尋ねる。CI と dev の検証を同じ内容に揃えるため。
     - 作るなら `<plugin>/templates/github/tixforge-ci.yml` を下敷きにして、ユーザーと一緒に埋める：`__DEFAULT_BRANCH__` は `repository.base_branch`、`__COMMANDS__` は `commands` を書いた順に 1 ステップずつ、`__SETUP__`（言語のセットアップ・依存のインストール）はプロジェクトのファイル（`package.json` のロックファイル・`.nvmrc`・`pyproject.toml`・`go.mod` など）から候補を作って確認する。**確認していないセットアップ手順を推測で書かない。**

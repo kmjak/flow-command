@@ -9,7 +9,7 @@
 
 **チケットの準備**（新規・再開のどちらでも最初に行う）：
 
-- **`GT-` のチケット**：`references/github.md` を Read し、「事前チェック」の後、「チケットを issue から取ってくる」を行う（手元のコピーは毎回 issue から作り直す）。「変更あり」で、進行中の run（状態ファイルがあり、`Status` が `done`・`canceled` 以外）がある場合は、`references/rollback.md` を Read してフェーズを戻すか決めてから再開する。issue が閉じていれば、下記の `done`・キャンセル済みの扱いに従い、それ以外なら止まって尋ねる。
+- **`GT-` のチケット**：`references/github/fetch.md` を Read し、その手順で issue からチケットを取ってくる（手元のコピーは毎回 issue から作り直す）。「変更あり」で、進行中の run（状態ファイルがあり、`Status` が `done`・`canceled` 以外）がある場合は、`references/rollback.md` を Read してフェーズを戻すか決めてから再開する。issue が完了済み・キャンセル済みなら、下記の `done`・キャンセル済みの扱いに従う。
 - **`LT-` のチケット**：`.tixforge/<ticket-id>/ticket.md` を読む。無ければ停止し、`/tixforge:ticket create` で作るか尋ねる（id は create で自動的に決まるため、指定された id のままにはならないことも伝える）。dev の中でチケットの内容を捏造・作成しない。
 - 読んだら「`<ticket-id>`：<タイトル>」を示す（取り違えの防止）。
 
@@ -22,7 +22,7 @@
    - `pr:awaiting-review` → PR の状況を確認する（PR フェーズの「PR の状況確認」）。
    - `done` → run が完了済みであること（`## PR` の PR URL 付き）を伝え、どうしたいか尋ねる。勝手にフェーズをやり直さない（やり直すなら新しいチケットを作る）。`GT-` で、PR がマージ済みなのに issue が開いたままなら、閉じるか尋ねる。
 2. **状態ファイルが存在しない**場合：
-   - `GT-` なら `issue-label.sh <番号> start` を実行する（終了コード 4：他の人が assign されている → 状態ファイルを作る前に停止して尋ねる）。
+   - `GT-` なら `references/github/labels.md` を Read し、`issue-label.sh <番号> start` を実行する（終了コード 4：他の人が assign されている → 状態ファイルを作る前に停止して尋ねる）。
    - `bash <scripts>/run-state.sh init <ticket-id>` で状態ファイルを作り（`Status: research:in-progress`。`.tixforge/.gitignore` が無ければ一緒に作られ、状態ファイルは git に載らない）、Phase 1 を開始する。
 
 ## 状態ファイル `.tixforge/<ticket-id>/state.md`
@@ -108,6 +108,7 @@
 2. 承認済みブランチ上で、承認済みの commit 分割に従って実装・commit する。
    - **テストは対応表に沿って書く。** 表の「自動」の行のテストを、表に書いたテスト名で作る。名前や場所を変えたら `## Implementation Log` に記録する（Review が照合できるように）。
    - **commit メッセージは `docs/context/commit.md` に従う**（最初の commit の前に読む。`Source:` にパスがあればそのファイルを規約として読み、本文は補足として扱う。`Language:` の言語で書く）。`commit.md` が無ければ直近の `git log` の書式に合わせ、`/tixforge:project init` の再実行で作れることを伝える。
+   - `GT-` なら、最初の commit のメッセージの最後の行に `Closes #<番号>` のトレーラーを入れる（`references/github/pr.md`。Base が default branch でない運用でも、リリースで issue が閉じるようにするため）。
    - commit ごとの承認では止めない。
 3. commit を積むごとに `## Implementation Log`（commit hash とメッセージ、実装中の重要な判断）を更新する。
 4. 承認された計画どおりに進められないと分かったら（ある commit を大きく変える必要がある、方針が誤っていた等）、停止して提起する。これは小さな確認ではなく本当の判断事項。
@@ -202,13 +203,13 @@ Verification @ a1b2c3d: test pass, lint pass
    無ければ、取り返しのつかない操作の前に次を提示する：**ブランチ**・**向き先ブランチ**（ヘッダ表の `Base`）・**PR タイトル**・**PR 本文の下書き**（タイトルと本文はドキュメント言語）。
    - **本文**：リポジトリに PR テンプレート（`.github/pull_request_template.md`・`.github/PULL_REQUEST_TEMPLATE.md`・`docs/pull_request_template.md`・ルートの `pull_request_template.md` など）があれば、その見出しに沿って埋める。無ければ「概要」「方針」「受け入れ条件（対応表の確かめ方と結果）」「検証」を書く。
    - **方針**は、Approach で合意した**結論と理由を 2〜3 行**だけ書く（検討した選択肢・試行錯誤の経緯は書かない。人のレビュアーに「なぜこうしたか」を伝えるためで、検討過程に引っ張らないため）。
-   - `GT-` なら、本文の末尾に **`Closes #<番号>` を必ず入れ**、作成の直前に issue からチケットを取ってくる（`references/github.md`「チケットを issue から取ってくる」）。変更があったら、PR を作らずに停止し、`references/rollback.md` でフェーズを戻すか尋ねる（実装が変更後のチケットを満たしているとは限らないため）。
+   - `GT-` なら `references/github/pr.md` を Read し、本文の末尾に **`Closes #<番号>` を必ず入れる**。作成の直前に issue からチケットを取ってくる（`references/github/fetch.md`）。変更があったら、PR を作らずに停止し、`references/rollback.md` でフェーズを戻すか尋ねる（実装が変更後のチケットを満たしているとは限らないため）。
    - **context の確認**（1 回だけ、軽く）：この変更が `docs/context/**` の記述と**矛盾する**か（ディレクトリ構成・アーキテクチャ・用語・技術スタックを変えた等）を確かめる。矛盾がある場合だけ、直す箇所を示し、この PR に最小限の修正 commit を足すか尋ねる。矛盾が無ければ何もしない（「context の更新は不要」と一行伝えるだけ）。網羅的に書き足す提案はしない（context は作ったら基本的にそれに準拠して進めるもので、頻繁な更新はコンフリクトの元になるため）。
 2. `Status: pr:awaiting-approval` にして、**停止して明示的な確認を求める。** このゲートは `gates` の設定や前段の自動通過に関係なく必ず発生する。勝手に push / PR しない。
-3. 確認されたら、`Status` は `pr:awaiting-approval` のまま push して PR を作成する（例：`gh pr create --body-file <一時ファイル>`。`--fill` は使わず本文を明示する）。guard hook により、push・PR 作成のたびにユーザーの確認画面が出る。**確認画面で拒否されたら、言い換えて再実行せず、停止して指示を待つ**（SKILL.md のガードレール）。GitHub 連携なら、作成後に issue との紐付けを確かめ（`references/github.md`「PR との紐付け」）、`issue-label.sh <番号> review` を実行する。
+3. 確認されたら、`Status` は `pr:awaiting-approval` のまま push して PR を作成する（例：`gh pr create --body-file <一時ファイル>`。`--fill` は使わず本文を明示する）。guard hook により、push・PR 作成のたびにユーザーの確認画面が出る。**確認画面で拒否されたら、言い換えて再実行せず、停止して指示を待つ**（SKILL.md のガードレール）。`GT-` なら、作成後に issue との紐付けを確かめ（`references/github/pr.md`「紐付けの確認」）、`issue-label.sh <番号> review` を実行する。
 4. PR タイトル・向き先・URL を `## PR` に書き、`Status: pr:awaiting-review` にして URL を報告し、停止する。**この時点では `done` にしない。** レビューとマージは人が行うので、flow は待つだけ（flow は PR をマージしない）。ユーザーには、レビューが進んだら（1 人なら CI が通ったら）`/tixforge:dev <ticket-id>` で再開するよう案内する。
 5. **PR の状況確認**（`pr:awaiting-review` から再開したとき）：`bash <scripts>/pr-status.sh <PR URL>` を実行する。1 行目が判定、2 行目以降が詳細。`.tixforge/config.yml` の `review.required`（無ければ `true`）と合わせて、次のとおり進む：
-   - `merged` → `## PR` に結果を追記し、`Status: done` にする。`GT-` なら `references/github.md`「クローズ」に従って issue を閉じる。
+   - `merged` → `## PR` に結果を追記し、`Status: done` にする。`GT-` なら `references/github/pr.md`「マージされたとき」に従って issue のラベルとクローズを扱う。
    - `approved`（Approve 済み・CI 成功・コンフリクトなし）→ `## PR` に結果を追記し、`Status: done` にする（issue はまだ閉じない）。マージはユーザーが行う。
    - `ready`（Approve は無いが、CI 成功・コンフリクトなし）→
      - `review.required: false` なら `approved` と同じく `done` にし、「マージはご自身で行ってください」と伝える。
