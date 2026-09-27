@@ -3,7 +3,7 @@ name: dev
 description: tixforge の開発。1 つのチケットを 6 フェーズ Research → Approach → Plan → Implement → Review → PR で進める。進捗は .tixforge/<ticket-id>/state.md に集約するので、途中で止めても同じフェーズから再開できる。reset で run を捨てて最初からやり直す。/tixforge:dev で明示起動する。
 argument-hint: "[<ticket-id> | reset <ticket-id>]"
 disable-model-invocation: true
-allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/project-status.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/common-rules.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-id.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-state.sh *)
+allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/project-status.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/common-rules.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/github-preflight.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-id.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-state.sh *)
 ---
 
 # /tixforge:dev — チケットの開発

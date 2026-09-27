@@ -3,7 +3,7 @@ name: ticket
 description: tixforge のチケット操作。create（チケットを対話で作る。GitHub 連携時は issue を作り、issue 番号から id を決める）、edit（チケットを編集し、進行中の run はフェーズを戻す）、cancel（チケットをキャンセル済みにする）。/tixforge:ticket で明示起動する。
 argument-hint: "[create [作りたいもの] | edit <ticket-id> | cancel <ticket-id> | 作りたいもの]"
 disable-model-invocation: true
-allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/project-status.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/common-rules.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-id.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-state.sh *)
+allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/project-status.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/common-rules.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/github-preflight.sh), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-id.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-state.sh *)
 ---
 
 # /tixforge:ticket — チケット
