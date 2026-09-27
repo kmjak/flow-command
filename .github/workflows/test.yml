@@ -3,14 +3,14 @@ name: test
 on:
   push:
     paths:
-      - "skills/flow/scripts/**"
-      - "skills/flow/templates/**"
+      - "scripts/**"
+      - "templates/**"
       - "tests/**"
       - ".github/workflows/test.yml"
   pull_request:
     paths:
-      - "skills/flow/scripts/**"
-      - "skills/flow/templates/**"
+      - "scripts/**"
+      - "templates/**"
       - "tests/**"
       - ".github/workflows/test.yml"
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Tests for the /flow scripts other than guard.sh. gh is replaced by a stub
+# Tests for the tixforge scripts other than guard.sh. gh is replaced by a stub
 # that serves fixture JSON (through jq, as gh --jq would) and records edits.
 #
 # Usage: bash tests/scripts.test.sh   (also run it with /bin/bash on macOS for 3.2)
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
-scripts="$here/../skills/flow/scripts"
+scripts="$here/../scripts"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -28,7 +28,7 @@ git init -q -b main "$repo"
 cd "$repo" || exit 1
 mkdir -p docs/tickets
 cat > docs/flow.config.yml <<'EOF'
-# /flow settings (shared, committed)
+# tixforge settings (shared, committed)
 language: ja   # comment
 commands:      # run in order
   test: echo testing && exit 0
@@ -102,9 +102,9 @@ git clone -q "$tmp/origin.git" "$tmp/other" 2>/dev/null
   && git push -q origin T000020-y 2>/dev/null )
 eq T000021 "$(tid next)" "ticket pushed from another clone"
 
-# --- state.sh --------------------------------------------------------------
-section="state.sh"
-st() { bash "$scripts/state.sh" "$@"; }
+# --- run-state.sh --------------------------------------------------------------
+section="run-state.sh"
+st() { bash "$scripts/run-state.sh" "$@"; }
 mkdir -p docs/tickets && printf '# T000001: A\n\nIssue: #1\n\n## 背景\n' > docs/tickets/T000001.md
 eq docs/flow/T000001/main.md "$(st init T000001)" "init"
 st init T000001 2>/dev/null; eq 3 $? "init twice"
@@ -123,13 +123,13 @@ grep -q '^## Implementation Log' docs/flow/T000001/main.md && ok || ng "sections
 eq "$(printf 'T000001\timplement:in-progress\tT000001-a')" "$(st list)" "list"
 st get T000404 2>/dev/null; eq 1 $? "no such run"
 
-# --- status.sh -------------------------------------------------------------
-section="status.sh"
-out=$(bash "$scripts/status.sh")
+# --- project-status.sh -------------------------------------------------------------
+section="project-status.sh"
+out=$(bash "$scripts/project-status.sh")
 has "tracker=local" "$out" "config"
 has "gates=approach,plan,pr" "$out" "gates"
 has "T000001: Status implement:in-progress" "$out" "open run"
-out=$(cd "$tmp" && bash "$scripts/status.sh"); eq 0 $? "outside a repo exits 0"
+out=$(cd "$tmp" && bash "$scripts/project-status.sh"); eq 0 $? "outside a repo exits 0"
 has "flow.config.yml が無い" "$out" "no config"
 
 # --- session-start.sh ------------------------------------------------------
@@ -137,14 +137,14 @@ section="session-start.sh"
 git switch -q T000001-a
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 has "run T000001" "$out" "run on this branch"
-has "modes/dev.md" "$out" "tells to re-read dev.md"
+has "skills/dev/run.md" "$out" "tells to re-read run.md"
 git switch -q main
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 eq "" "$out" "no run on main"
-bash "$scripts/state.sh" set T000001 Status approach:in-progress >/dev/null
+bash "$scripts/run-state.sh" set T000001 Status approach:in-progress >/dev/null
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 has "run T000001" "$out" ".active run before a branch exists"
-bash "$scripts/state.sh" set T000001 Status implement:in-progress >/dev/null
+bash "$scripts/run-state.sh" set T000001 Status implement:in-progress >/dev/null
 
 # --- verify.sh -------------------------------------------------------------
 section="verify.sh"
@@ -280,7 +280,7 @@ has "updated" "$out" "push --force rehashes"
 has "removed label: flow:out-of-sync" "$out" "push removes out-of-sync"
 eq in-sync "$(is check 42 | sed -n 1p)" "in sync after adopting"
 
-# Local edit (/flow edit) then push.
+# Local edit (/tixforge:ticket edit) then push.
 sed 's/ログインできる/ログインできる\n- [ ] ログアウトできる/' docs/tickets/T000042.md > "$tmp/t" && cat "$tmp/t" > docs/tickets/T000042.md
 has "updated" "$(is push 42 docs/tickets/T000042.md)" "push a local edit"
 has "ログアウトできる" "$(jq -r .body "$GH_DIR/issue-42.json")" "issue has the edit"
