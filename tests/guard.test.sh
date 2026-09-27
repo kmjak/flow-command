@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for skills/flow/scripts/guard.sh.
+# Tests for scripts/guard.sh.
 #
 # Feeds the guard the same JSON Claude Code sends to a PreToolUse(Bash) hook
 # and checks its decision:
@@ -11,7 +11,7 @@
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
-guard="$here/../skills/flow/scripts/guard.sh"
+guard="$here/../scripts/guard.sh"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -30,7 +30,7 @@ done
 
 # --- fixtures ---------------------------------------------------------------
 
-# A repo whose branch T000001-login is owned by a /flow run.
+# A repo whose branch T000001-login is owned by a tixforge run.
 flow="$tmp/flow-repo"
 git init -q -b main "$flow"
 git -C "$flow" commit -q --allow-empty -m init
@@ -59,7 +59,7 @@ ${2:-}
 EOF
 }
 
-# A repo with no /flow at all.
+# A repo with no tixforge at all.
 plain="$tmp/plain-repo"
 git init -q -b main "$plain"
 git -C "$plain" commit -q --allow-empty -m init
