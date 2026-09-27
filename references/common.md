@@ -59,7 +59,7 @@
     required: true        # PR の Approve を必須にするか。1 人で開発するなら false
   gates: [approach, plan, pr]  # 必ず止まるゲート。pr は書かなくても必ず止まる（skills/dev/run.md「承認ゲート」）
   ```
-  スクリプトはこの形（2 段までの入れ子・1 行 1 キー・`#` コメント）だけを読む。値に ` #` を含めるときは `"…"` で囲む。
+  スクリプトはこの形（2 段までの入れ子・1 行 1 キー・`#` コメント）だけを読む。値は全体を `"…"` で囲むか、まったく囲まない（` #` を含むなら囲む）。
 - 設定に必要なキーが無ければ、推測の既定値で補わず、`/tixforge:project init` の再実行で足せることを伝える（init は全てのキーを書く）。`review.required` が無ければ `true`、`gates` が無ければ `[approach, plan, pr]` として扱う。
 - `ticket.tracker: github` は `repository.host: github` のときだけ使える。
 - 上記パスは固定規約。`init` はこの規約どおりの雛形を作るだけで、パスの選択はしない。
@@ -91,18 +91,10 @@
 ## ガードレール
 
 - dev の 1 run につき 1 チケット。作業が別チケットの範囲に広がりそうなら指摘する。
-- 明示的な確認なしに push / PR 作成 / マージをしない（dev の PR フェーズ）。flow は PR をマージしない（`host: none` のローカルマージだけは、確認の後に行う）。
-- **hook による強制**（tixforge plugin の `hooks/hooks.json` に同梱。plugin を有効にしていれば、tixforge の起動や `--resume` に関係なく全セッションで効く）：
-  - `scripts/guard.sh`（PreToolUse）— flow の run が関わる場所でだけ判定する。run のブランチと、進行中の run の Base では、push・PR 作成・許可リストに無い git / gh 操作（merge・rebase・reset・`gh pr merge`・`gh api` の書き込みなど）・GitHub / git の MCP の書き込みのたびに確認画面を出し、force push と `Closes #<番号>` の無い PR 作成をブロックする。Base への commit も確認画面を出す。Plan の承認前の run（`research`・`approach`・`plan`）があるときに、`docs/`・`.tixforge/` 以外のファイルを Edit / Write しようとしたときも確認画面を出す（Implement 以降に進んだ run のブランチの上では出さない）。
-  - `scripts/session-start.sh`（SessionStart、`compact|resume`）— 会話の要約・再開の後、進行中の run と読み直すファイルを伝える。
-  - **ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。
-  - 確認画面はチャットでの承認の代わりではない。PR フェーズのゲートでは、これまでどおりチャットで確認を得てから push / PR 作成を実行する（確認画面はその後にもう一度出る）。
+- 明示的な確認なしに push / PR 作成 / マージをしない（dev の PR フェーズ）。tixforge は PR をマージしない（`host: none` のローカルマージだけは、確認の後に行う）。
+- **hook（guard）が push・PR 作成・一部の git / gh 操作・Plan 承認前のコード編集に確認画面を出したり、ブロックしたりする。ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。確認画面はチャットでの承認の代わりではない（PR フェーズでは、チャットで確認を得てから実行する）。
 - 外部システムの操作は、`GT-` のチケットの GitHub issue に対する、`references/github/` に定めた操作だけにする。issue のコメントは自由で、tixforge はコメントを編集・削除しない。それ以外の外部システム（Jira など）にチケットを作らない。
 
-## v1 の対象外（v2 送り）
+## 扱わないもの
 
-- GitHub issue 以外のチケット／知識ソース（Jira / GitHub Projects / Confluence）。
-- 複数ブランチ実行とサブチケット分割（`.tixforge/<ticket-id>/` 配下の兄弟ファイル）。
-- バックログ（チケットの分解・依存関係・優先度・次の 1 枚の提示）。
-
-ユーザーがこれらを求めたら、v2 の機能であることを伝え、v1 の範囲でできることを行う。
+- GitHub issue 以外のチケット管理（Jira など）・複数ブランチにまたがる 1 チケット・バックログの管理（分解・優先度）。求められたら、tixforge では扱わないことを伝え、1 チケット 1 ブランチの範囲でできることを行う（大きいチケットは分けることを提案する）。
