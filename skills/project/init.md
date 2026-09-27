@@ -42,7 +42,7 @@
        base_branch: develop  # dev がブランチを切る元・PR の向き先
        close_issues: release # base_branch が default branch と違うときだけ：release | merge
      ```
-5. **ドキュメント言語**（`language`）：「日本語（推奨・既定）」「English」を選択肢にして尋ねる（その他は自由入力）。以降のチケットと `docs/context/**` はこの言語で書く。
+5. **ドキュメント言語**（`language`）：「日本語（推奨・既定）」「English」を選択肢にして尋ねる（その他は自由入力）。以降のチケットと `docs/context/**` はこの言語で書き、この後の会話（質問・説明）もこの言語で行う。ここまでの会話は日本語で行う。
 6. **検証コマンド**（`commands`）：dev の Implement・Review で Claude が実行する、テスト・lint・型チェックなどのコマンド。
    - 先にプロジェクトから候補を読み取る（`package.json` の scripts、`Makefile`、`justfile`、`Taskfile.yml`、`pyproject.toml`、`Cargo.toml`、`go.mod`、CI 設定（`.github/workflows/*`）など）。CI で実行しているコマンドがあれば優先して候補にする。
    - 候補を出典のファイル付きで示し、どれを使うかをユーザーに確定してもらう。**確認なしに推測のコマンドを書かない。**
@@ -136,7 +136,7 @@
     - **入れる・既定のテンプレートが無い** — `.github/pull_request_template.md` として新しく作る。
     - **入れる・ある** — 既存の内容は一切変えず、既存のテンプレートに**無い見出しだけ**を末尾に追記する。追記する差分を示し、確認を得てから書く。
     - **入れない** — 何もしない。
-15. **GitHub Actions**（`tracker: github` のときだけ）：`references/github/actions.md` を Read し、サーバー側の workflow を入れるか尋ねる（複数選択。既に `.github/workflows/` にあるものは除く）。`close_issues: merge` で `base_branch` が default branch と違うなら、`tixforge-issue-sync` は「強く推奨」と添える。選ばれたものを `<plugin>/templates/github/` から `.github/workflows/` にそのままコピーする（内容は変えない）。`tixforge-issue-guard` なら `<scripts>/ticket-hash.sh` と `<scripts>/messages.yml` を `.github/tixforge/` にもコピーする。作るファイルを一覧で示し、確認を得てから作る。plugin を更新しても、コピーした workflow は自動では更新されない（`/tixforge:project update` で更新できる）ことを伝える。
+15. **GitHub Actions**（`tracker: github` のときだけ）：`references/github/actions.md` を Read し、サーバー側の workflow を入れるか尋ねる（複数選択。既に `.github/workflows/` にあるものは除く）。`close_issues: merge` で `base_branch` が default branch と違うなら、`tixforge-issue-sync` は「強く推奨」と添える。選ばれたものを `<plugin>/templates/github/` から `.github/workflows/` にそのままコピーする（内容は変えない）。`tixforge-issue-guard` か `tixforge-pr-link` なら `<scripts>/messages.yml` を、`tixforge-issue-guard` なら `<scripts>/ticket-hash.sh` も `.github/tixforge/` にコピーする。作るファイルを一覧で示し、確認を得てから作る。plugin を更新しても、コピーした workflow は自動では更新されない（`/tixforge:project update` で更新できる）ことを伝える。
 16. **CI**（`host: github` で `commands` が `{}` でないときだけ）：`.github/workflows/` に、検証コマンドを実行している workflow が無ければ、作るか尋ねる。CI と dev の検証を同じ内容に揃えるため。
     - 作るなら `<plugin>/templates/github/tixforge-ci.yml` を下敷きにして、ユーザーと一緒に埋める：`__BRANCHES__` は `base_branch`（GitHub の default branch と違えば両方。main + develop なら `main, develop`）、`__COMMANDS__` は `commands` を書いた順に 1 ステップずつ、`__SETUP__`（言語のセットアップ・依存のインストール）はプロジェクトのファイル（`package.json` のロックファイル・`.nvmrc`・`pyproject.toml`・`go.mod` など）から候補を作って確認する。**確認していないセットアップ手順を推測で書かない。**
     - 全文を示し、確認を得てから `.github/workflows/tixforge-ci.yml` に書く。
