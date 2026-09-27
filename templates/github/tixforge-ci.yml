@@ -1,4 +1,4 @@
-# tixforge template: tixforge-ci (v1). A starting point that /tixforge:project init
+# tixforge template: tixforge-ci (v2). A starting point that /tixforge:project init
 # fills in with the user: the setup steps depend on the project, the verify
 # steps are .tixforge/config.yml `commands` in the same order, so CI and
 # /tixforge:dev verify the same things.
@@ -7,7 +7,7 @@ name: tixforge-ci
 on:
   pull_request:
   push:
-    branches: [__DEFAULT_BRANCH__]
+    branches: [__BRANCHES__]   # base_branch, and the default branch when it differs (main + develop)
 
 permissions:
   contents: read

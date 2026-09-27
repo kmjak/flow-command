@@ -24,6 +24,7 @@ if [ -f "$conf" ]; then
     "tracker=$(cfg ticket.tracker "$conf")" \
     "host=$(cfg repository.host "$conf")" \
     "base_branch=$(cfg repository.base_branch "$conf")" \
+    "close_issues=$(cfg repository.close_issues "$conf")" \
     "review.required=$(cfg review.required "$conf")" \
     "gates=${gates:-（未設定）}"
 else
