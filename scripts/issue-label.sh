@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Status labels and assignee of a tixforge issue (ticket.tracker: github).
 #
-#   issue-label.sh <number> start [--force]   flow:in-progress, assign yourself
-#   issue-label.sh <number> review            flow:in-review
-#   issue-label.sh <number> reset             flow:todo, unassign yourself
+#   issue-label.sh <number> start [--force]   tixforge:in-progress, assign yourself
+#   issue-label.sh <number> review            tixforge:in-review
+#   issue-label.sh <number> reset             tixforge:todo, unassign yourself
 #
-# Only the flow:todo / flow:in-progress / flow:in-review labels that are on
-# the issue are removed; other labels (flow:out-of-sync included) are kept.
+# Only the tixforge:todo / tixforge:in-progress / tixforge:in-review labels that are on
+# the issue are removed; other labels (tixforge:out-of-sync included) are kept.
 # Prints what was done in one line.
 #
 # Exit: 0 ok, 2 usage, 3 the issue is closed, 4 someone else is assigned
@@ -19,9 +19,9 @@ usage() { grep '^#   [a-z]' "$0" | sed 's/^#   //' >&2; exit 2; }
 n=$1 action=$2 force=${3:-}
 [ -z "$force" ] || [ "$force" = --force ] || usage
 case $action in
-  start) want=flow:in-progress ;;
-  review) want=flow:in-review ;;
-  reset) want=flow:todo ;;
+  start) want=tixforge:in-progress ;;
+  review) want=tixforge:in-review ;;
+  reset) want=tixforge:todo ;;
   *) usage ;;
 esac
 
@@ -44,7 +44,7 @@ if [ "$action" = start ] && [ -z "$force" ]; then
 fi
 
 args=""
-for l in flow:todo flow:in-progress flow:in-review; do
+for l in tixforge:todo tixforge:in-progress tixforge:in-review; do
   [ "$l" = "$want" ] && continue
   case ",$labels," in *",$l,"*) args="$args --remove-label $l" ;; esac
 done

@@ -11,7 +11,7 @@
 # base are not counted as part of this run. A local <base> that is ahead of
 # origin (unpushed merges, host: none) is used as is.
 #
-# Files go under <git dir>/flow/review/<id>/ (outside docs/flow/, which the
+# Files go under <git dir>/tixforge/review/<id>/ (outside .tixforge/, which the
 # reviewers must not read) and are replaced on every call:
 #   diff.patch   git diff <fork point>..HEAD
 #   log.txt      git log --stat <fork point>..HEAD
@@ -41,7 +41,7 @@ if git rev-parse --verify -q "$remote" >/dev/null; then
   fi
 fi
 
-dir="$(git rev-parse --absolute-git-dir)/flow/review/$id"
+dir="$(git rev-parse --absolute-git-dir)/tixforge/review/$id"
 mkdir -p "$dir"
 git diff "$fork"..HEAD > "$dir/diff.patch"
 git log --stat "$fork"..HEAD > "$dir/log.txt"

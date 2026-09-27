@@ -26,8 +26,8 @@ has() { case "$2" in *"$1"*) ok ;; *) ng "$3: [$1] not in [$2]" ;; esac; }
 repo="$tmp/repo"
 git init -q -b main "$repo"
 cd "$repo" || exit 1
-mkdir -p docs/tickets
-cat > docs/flow.config.yml <<'EOF'
+mkdir -p .tixforge
+cat > .tixforge/config.yml <<'EOF'
 # tixforge settings (shared, committed)
 language: ja   # comment
 commands:      # run in order
@@ -35,17 +35,14 @@ commands:      # run in order
   lint: "echo 'a # not a comment' ; exit 1"
 ticket:
   tracker: local
-  prefix: T
-  pad: 6
 repository:
   host: github
-  default_branch: main
+  base_branch: main
 review:
   required: false
 gates: [approach, plan, pr]
 EOF
-printf 'docs/flow/\n' > .gitignore
-git add -A && git commit -q -m init
+git add -A && git commit -q -m init   # .tixforge/.gitignore comes with the first run
 
 # --- lib.sh ----------------------------------------------------------------
 section="lib.sh cfg"
@@ -74,92 +71,113 @@ cfg_has nothing && ng "cfg_has nothing" || ok
 # --- ticket-id.sh ----------------------------------------------------------
 section="ticket-id.sh"
 tid() { bash "$scripts/ticket-id.sh" "$@"; }
-eq T000123 "$(tid normalize 123)" "digits"
-eq T000123 "$(tid normalize '#123')" "#digits"
-eq T000123 "$(tid normalize T123)" "short id"
-eq T000123 "$(tid normalize T000123)" "canonical"
-eq T1234567 "$(tid normalize 1234567)" "longer than pad"
-eq 123 "$(tid number T000123)" "number"
-eq 8 "$(tid number T000008)" "number, not octal"
+eq LT-000123 "$(tid normalize 123)" "a bare number follows tracker: local"
+eq GT-000123 "$(tid normalize '#123')" "#N is issue N"
+eq GT-000123 "$(tid normalize gt-000123)" "prefix in any case"
+eq LT-000007 "$(tid normalize LT-000007)" "canonical"
+eq LT-1234567 "$(tid normalize 1234567)" "more than 6 digits"
+eq GT-1234567 "$(tid normalize GT-1234567)" "7 digits with a prefix"
+tid normalize GT-00123 2>/dev/null; eq 2 $? "too few digits are not padded"
+tid normalize GT-0000123 2>/dev/null; eq 2 $? "too many digits"
+tid normalize GT-000000 2>/dev/null; eq 2 $? "number zero"
 tid normalize 'a b' 2>/dev/null; eq 2 $? "invalid id"
-tid normalize legacy-1 2>/dev/null; eq 1 $? "unknown old-format id"
-touch docs/tickets/legacy-1.md
-eq legacy-1 "$(tid normalize legacy-1)" "old-format id with a ticket"
-rm docs/tickets/legacy-1.md
-eq T000001 "$(tid next --no-fetch)" "first ticket"
+tid normalize T000123 2>/dev/null; eq 2 $? "the old T-prefix form"
+has "GT-000123" "$(tid normalize GT-00123 2>&1)" "the error shows the right form"
+eq 123 "$(tid number GT-000123)" "number"
+eq 8 "$(tid number GT-000008)" "number, not octal"
+tid number LT-000001 2>/dev/null; eq 2 $? "a local ticket has no issue number"
+cp .tixforge/config.yml "$tmp/keep-conf.yml"
+sed 's/tracker: local/tracker: github/' "$tmp/keep-conf.yml" > .tixforge/config.yml
+eq GT-000123 "$(tid normalize 123)" "a bare number follows tracker: github"
+grep -v 'tracker:' "$tmp/keep-conf.yml" > .tixforge/config.yml
+tid normalize 123 2>/dev/null; eq 2 $? "a bare number without a tracker"
+cp "$tmp/keep-conf.yml" .tixforge/config.yml
 
-# The bug this fixes: a ticket committed only on its branch, plus a stale run.
-echo '# T000001: A' > docs/tickets/T000001.md
-git switch -q -c T000001-a && git add docs/tickets && git commit -q -m t1 && git switch -q main
-eq T000002 "$(tid next --no-fetch)" "ticket only on a branch"
-mkdir -p docs/flow/T000005 && touch docs/flow/T000005/main.md
-eq T000006 "$(tid next --no-fetch)" "stale run folder counts"
-git branch T000009-x
-eq T000010 "$(tid next --no-fetch)" "branch name counts"
-mkdir -p docs/tickets && echo '# T000011: B' > docs/tickets/T000011.md
-eq T000012 "$(tid next --no-fetch)" "untracked working copy counts"
-rm -rf docs/tickets/T000011.md docs/flow/T000005
-git branch -D -q T000009-x
+# detect: an id only in an explicit form, or when the whole text is a number.
+dt() { tid detect "$@" | sed -n "${n:-1}p"; }
+eq "id: none" "$(dt '404 ページを作る')" "a number inside a sentence is not an id"
+eq "rest: 404 ページを作る" "$(n=2 dt '404 ページを作る')" "rest keeps the sentence"
+eq "id: LT-000404" "$(dt 404)" "the whole text is a number"
+eq "id: GT-000012" "$(dt 'GT-000012 の受け入れ条件を直したい')" "explicit id in a sentence"
+eq "rest: の受け入れ条件を直したい" "$(n=2 dt 'GT-000012 の受け入れ条件を直したい')" "rest without the id"
+eq "id: GT-000007" "$(dt 'ログイン #7 の続き')" "#N in a sentence"
+eq "rest: ログイン の続き" "$(n=2 dt 'ログイン #7 の続き')" "rest is tidied"
+eq "invalid: gt-12" "$(dt 'gt-12 を直して')" "an explicit id with the wrong digit count"
+eq "id: none" "$(dt 'ログイン画面を作りたい')" "no id"
+eq "id: none" "$(dt 'v2 の API')" "letters and digits are not an id"
 
-# Remote-tracking branches are fetched and scanned.
-git init -q --bare "$tmp/origin.git"
-git remote add origin "$tmp/origin.git"
-git push -q origin main 2>/dev/null
-git clone -q "$tmp/origin.git" "$tmp/other" 2>/dev/null
-( cd "$tmp/other" && git switch -q -c T000020-y && mkdir -p docs/tickets \
-  && echo x > docs/tickets/T000020.md && git add -A && git commit -q -m t20 \
-  && git push -q origin T000020-y 2>/dev/null )
-eq T000021 "$(tid next)" "ticket pushed from another clone"
+# next: LT ids from .tixforge/ and local branch names only.
+eq LT-000001 "$(tid next)" "first ticket"
+mkdir -p .tixforge/LT-000005
+eq LT-000006 "$(tid next)" "a ticket folder counts"
+git branch LT-000009-x
+eq LT-000010 "$(tid next)" "a branch name counts"
+git branch T2024-release
+eq LT-000010 "$(tid next)" "an unrelated branch does not count"
+mkdir -p .tixforge/GT-000050
+eq LT-000010 "$(tid next)" "a GitHub ticket does not count"
+rm -rf .tixforge/LT-000005 .tixforge/GT-000050
+git branch -D -q LT-000009-x T2024-release
+
+# exists (LT; GT is tested with the gh stub below)
+tid exists LT-000001 >/dev/null; eq 1 $? "no such local ticket"
 
 # --- run-state.sh --------------------------------------------------------------
 section="run-state.sh"
 st() { bash "$scripts/run-state.sh" "$@"; }
-mkdir -p docs/tickets && printf '# T000001: A\n\nIssue: #1\n\n## 背景\n' > docs/tickets/T000001.md
-eq docs/flow/T000001/main.md "$(st init T000001)" "init"
-st init T000001 2>/dev/null; eq 3 $? "init twice"
-eq research:in-progress "$(st get T000001)" "initial Status"
-eq '#1' "$(st get T000001 Issue)" "Issue from the ticket"
-rm docs/tickets/T000001.md   # the branch T000001-a has its own copy
-eq T000001 "$(cat docs/flow/.active)" ".active while researching"
-eq T000001-a "$(st set T000001 Branch T000001-a)" "set Branch"
-st set T000001 Status implement:typo 2>/dev/null; eq 2 $? "invalid Status"
-st set T000001 Updated x 2>/dev/null; eq 2 $? "Updated is not settable"
-eq plan:awaiting-approval "$(st set T000001 Status plan:awaiting-approval)" "set Status"
-eq T000001 "$(cat docs/flow/.active)" ".active until Implement"
-st set T000001 Status implement:in-progress >/dev/null
-[ -f docs/flow/.active ] && ng ".active removed at Implement" || ok
-grep -q '^## Implementation Log' docs/flow/T000001/main.md && ok || ng "sections kept"
-eq "$(printf 'T000001\timplement:in-progress\tT000001-a')" "$(st list)" "list"
-st get T000404 2>/dev/null; eq 1 $? "no such run"
+mkdir -p .tixforge/LT-000001 && printf '# LT-000001: A\n\n## 背景\n' > .tixforge/LT-000001/ticket.md
+eq .tixforge/LT-000001/state.md "$(st init LT-000001)" "init"
+[ -f .tixforge/.gitignore ] && ok || ng "init creates .tixforge/.gitignore"
+eq ".tixforge/.gitignore" "$(git status --porcelain --untracked-files=all .tixforge | cut -c4-)" "only .gitignore is visible to git"
+git add .tixforge/.gitignore && git commit -q -m gitignore
+eq LT-000001 "$(tid exists LT-000001 >/dev/null && echo LT-000001)" "exists: a local ticket"
+st init LT-000001 2>/dev/null; eq 3 $? "init twice"
+st init T000001 2>/dev/null; eq 2 $? "not a ticket id"
+eq research:in-progress "$(st get LT-000001)" "initial Status"
+st set LT-000001 Issue '#1' 2>/dev/null; eq 2 $? "Issue is not a header field"
+git branch LT-000001-a
+eq LT-000001-a "$(st set LT-000001 Branch LT-000001-a)" "set Branch"
+st set LT-000001 Status implement:typo 2>/dev/null; eq 2 $? "invalid Status"
+st set LT-000001 Updated x 2>/dev/null; eq 2 $? "Updated is not settable"
+eq plan:awaiting-approval "$(st set LT-000001 Status plan:awaiting-approval)" "set Status"
+st set LT-000001 Status implement:in-progress >/dev/null
+grep -q '^## Implementation Log' .tixforge/LT-000001/state.md && ok || ng "sections kept"
+eq "$(printf 'LT-000001\timplement:in-progress\tLT-000001-a')" "$(st list)" "list"
+st get LT-000404 2>/dev/null; eq 1 $? "no such run"
 
 # --- project-status.sh -------------------------------------------------------------
 section="project-status.sh"
 out=$(bash "$scripts/project-status.sh")
 has "tracker=local" "$out" "config"
 has "gates=approach,plan,pr" "$out" "gates"
-has "T000001: Status implement:in-progress" "$out" "open run"
+has "LT-000001: Status implement:in-progress" "$out" "open run"
 out=$(cd "$tmp" && bash "$scripts/project-status.sh"); eq 0 $? "outside a repo exits 0"
-has "flow.config.yml が無い" "$out" "no config"
-cp docs/flow.config.yml "$tmp/keep-gates.yml"
-sed 's/^gates: .*/gates: []/' "$tmp/keep-gates.yml" > docs/flow.config.yml
+has "config.yml が無い" "$out" "no config"
+cp .tixforge/config.yml "$tmp/keep-gates.yml"
+sed 's/^gates: .*/gates: []/' "$tmp/keep-gates.yml" > .tixforge/config.yml
 has "gates=[]（pr のみ）" "$(bash "$scripts/project-status.sh")" "explicit empty gates"
-grep -v '^gates:' "$tmp/keep-gates.yml" > docs/flow.config.yml
+grep -v '^gates:' "$tmp/keep-gates.yml" > .tixforge/config.yml
 has "gates=（未設定）" "$(bash "$scripts/project-status.sh")" "missing gates"
-cp "$tmp/keep-gates.yml" docs/flow.config.yml
+cp "$tmp/keep-gates.yml" .tixforge/config.yml
 
 # --- session-start.sh ------------------------------------------------------
 section="session-start.sh"
-git switch -q T000001-a
+git switch -q LT-000001-a
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
-has "run T000001" "$out" "run on this branch"
+has "run LT-000001" "$out" "run on this branch"
 has "skills/dev/run.md" "$out" "tells to re-read run.md"
 git switch -q main
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 eq "" "$out" "no run on main"
-bash "$scripts/run-state.sh" set T000001 Status approach:in-progress >/dev/null
+bash "$scripts/run-state.sh" set LT-000001 Status approach:in-progress >/dev/null
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
-has "run T000001" "$out" ".active run before a branch exists"
-bash "$scripts/run-state.sh" set T000001 Status implement:in-progress >/dev/null
+has "run LT-000001" "$out" "the only run before Implement, with no branch yet"
+bash "$scripts/run-state.sh" init LT-000002 >/dev/null
+out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
+has "複数" "$out" "several runs before Implement: ask which"
+has "LT-000001 LT-000002" "$out" "both are listed"
+rm -rf .tixforge/LT-000002
+bash "$scripts/run-state.sh" set LT-000001 Status implement:in-progress >/dev/null
 
 # --- verify.sh -------------------------------------------------------------
 section="verify.sh"
@@ -168,49 +186,49 @@ out=$(bash "$scripts/verify.sh"); code=$?
 eq 1 $code "a failing command"
 has "Verification @ $(git rev-parse --short HEAD)+dirty: test pass, lint fail" "$out" "result line"
 has "log lint:" "$out" "log of the failure"
-has "a # not a comment" "$(cat "$(git rev-parse --absolute-git-dir)/flow/verify/lint.log")" "quoted # kept"
+has "a # not a comment" "$(cat "$(git rev-parse --absolute-git-dir)/tixforge/verify/lint.log")" "quoted # kept"
 git stash -q -u
-sed 's/exit 1"/exit 0"/' docs/flow.config.yml > "$tmp/c" && cat "$tmp/c" > docs/flow.config.yml
+sed 's/exit 1"/exit 0"/' .tixforge/config.yml > "$tmp/c" && cat "$tmp/c" > .tixforge/config.yml
 git commit -q -am pass
 out=$(bash "$scripts/verify.sh"); eq 0 $? "all pass"
 eq "Verification @ $(git rev-parse --short HEAD): test pass, lint pass" "$out" "clean tree"
 git stash pop -q
 printf 'language: ja\ncommands: {}\n' > "$tmp/empty.yml"
-cp docs/flow.config.yml "$tmp/keep.yml"; cp "$tmp/empty.yml" docs/flow.config.yml
+cp .tixforge/config.yml "$tmp/keep.yml"; cp "$tmp/empty.yml" .tixforge/config.yml
 has "検証コマンドなし" "$(bash "$scripts/verify.sh")" "commands: {}"
-printf 'language: ja\n' > docs/flow.config.yml
+printf 'language: ja\n' > .tixforge/config.yml
 bash "$scripts/verify.sh" 2>/dev/null; eq 3 $? "no commands key"
-cp "$tmp/keep.yml" docs/flow.config.yml
+cp "$tmp/keep.yml" .tixforge/config.yml
 
 # --- review-input.sh -------------------------------------------------------
 section="review-input.sh"
-git switch -q T000001-a
+git switch -q LT-000001-a
 echo change > file.txt && git add file.txt && git commit -q -m change
-paths=$(bash "$scripts/review-input.sh" T000001 main)
+paths=$(bash "$scripts/review-input.sh" LT-000001 main)
 diff_file=$(printf '%s\n' "$paths" | sed -n 1p)
 has "+change" "$(cat "$diff_file")" "diff"
-has "/.git/flow/review/T000001/" "$diff_file" "outside docs/flow"
+has "/.git/tixforge/review/LT-000001/" "$diff_file" "outside .tixforge"
 eq 3 "$(printf '%s\n' "$paths" | grep -c .)" "three paths without --since"
 # --since writes the change after a given commit as delta.patch.
 since=$(git rev-parse HEAD)
 echo more > more.txt && git add more.txt && git commit -q -m more
-paths=$(bash "$scripts/review-input.sh" T000001 main --since "$since")
+paths=$(bash "$scripts/review-input.sh" LT-000001 main --since "$since")
 delta=$(printf '%s\n' "$paths" | sed -n 4p)
 has "delta.patch" "$delta" "delta path"
 has "+more" "$(cat "$delta")" "delta has the new change"
 case "$(cat "$delta")" in *"+change"*) ng "delta has only the new change" ;; *) ok ;; esac
 has "+change" "$(cat "$(printf '%s\n' "$paths" | sed -n 1p)")" "full diff still has everything"
-bash "$scripts/review-input.sh" T000001 main >/dev/null
+bash "$scripts/review-input.sh" LT-000001 main >/dev/null
 [ -f "$delta" ] && ng "delta removed without --since" || ok
-bash "$scripts/review-input.sh" T000001 main --since nope 2>/dev/null; eq 2 $? "unknown --since commit"
+bash "$scripts/review-input.sh" LT-000001 main --since nope 2>/dev/null; eq 2 $? "unknown --since commit"
 # A local base behind origin/<base>: others' commits there are not this run's.
 git switch -q main
 echo other > other.txt && git add other.txt && git commit -q -m other
 git update-ref refs/remotes/origin/main HEAD
 git reset -q --hard HEAD~1
-git switch -q T000001-a
+git switch -q LT-000001-a
 git merge -q --no-edit origin/main
-paths=$(bash "$scripts/review-input.sh" T000001 main)
+paths=$(bash "$scripts/review-input.sh" LT-000001 main)
 case "$(cat "$(printf '%s\n' "$paths" | sed -n 1p)")" in *"+other"*) ng "stale local base: others' commit excluded" ;; *) ok ;; esac
 has "+change" "$(cat "$(printf '%s\n' "$paths" | sed -n 1p)")" "stale local base: own change kept"
 git update-ref -d refs/remotes/origin/main
@@ -226,7 +244,7 @@ h3=$(printf '## A\n x\n' | th hash "Title")
 [ "$h1" != "$h3" ] && ok || ng "inner spacing changes the hash"
 h4=$(printf '## A\nx\n' | th hash "Title2")
 [ "$h1" != "$h4" ] && ok || ng "the title changes the hash"
-body=$(printf '> note\n\n<!-- flow:hash:abc123abc123 -->\r\n<!-- flow:ticket:start -->\r\n## A\r\nx\r\n<!-- flow:ticket:end -->\r\n')
+body=$(printf '> note\n\n<!-- tixforge:hash:abc123abc123 -->\r\n<!-- tixforge:ticket:start -->\r\n## A\r\nx\r\n<!-- tixforge:ticket:end -->\r\n')
 eq "$(printf '## A\nx')" "$(printf '%s' "$body" | th extract)" "extract"
 eq abc123abc123 "$(printf '%s' "$body" | th stored)" "stored"
 printf 'no markers\n' | th extract >/dev/null; eq 3 $? "extract without markers"
@@ -247,6 +265,9 @@ set -- "${args[@]}"
 case "$1 $2" in
   "issue view") jq -r "$jqf" "$GH_DIR/issue-$3.json" ;;
   "api user") echo me ;;
+  "api repos/"*)   # repos/{owner}/{repo}/issues/<n>: an issue, or a PR when the fixture has pull_request
+    f="$GH_DIR/issue-${2##*/}.json"
+    if [ -f "$f" ]; then jq -r "$jqf" "$f"; else echo "gh: Not Found (HTTP 404)" >&2; exit 1; fi ;;
   "issue create")
     echo "https://github.com/o/r/issues/42" ;;
   "issue edit")
@@ -286,80 +307,90 @@ cat > "$tmp/draft.md" <<'EOF'
 EOF
 out=$(is create "$tmp/draft.md")
 has "number: 42" "$out" "create prints the number"
-has "--label flow:todo" "$(cat "$GH_DIR/calls")" "create labels flow:todo"
+has "--label tixforge:todo" "$(cat "$GH_DIR/calls")" "create labels tixforge:todo"
 is body "$tmp/draft.md" > "$tmp/body42"
-has "<!-- flow:ticket:start -->" "$(cat "$tmp/body42")" "body has markers"
+has "<!-- tixforge:ticket:start -->" "$(cat "$tmp/body42")" "body has markers"
 has "この issue の本文は" "$(cat "$tmp/body42")" "notice in the document language"
 issue 42 "ログイン" "$tmp/body42"
 eq in-sync "$(is check 42 | sed -n 1p)" "fresh issue is in sync"
+eq issue "$(tid exists GT-000042)" "exists: an issue"
+jq -n '{title: "a PR", pull_request: {}}' > "$GH_DIR/issue-60.json"
+eq pull-request "$(tid exists '#60')" "exists: the number is a pull request"
+tid exists GT-000061 >/dev/null; eq 1 $? "exists: no such issue"
+cp .tixforge/config.yml "$tmp/keep-lang.yml"
+sed 's/^language: ja.*/language: en/' "$tmp/keep-lang.yml" > .tixforge/config.yml
+has "This issue body is synced" "$(is body "$tmp/draft.md")" "notice in English"
+sed 's/^language: ja.*/language: fr/' "$tmp/keep-lang.yml" > .tixforge/config.yml
+has "This issue body is synced" "$(is body "$tmp/draft.md")" "a language without messages falls back to English"
+cp "$tmp/keep-lang.yml" .tixforge/config.yml
 
-out=$(is pull 42 docs/tickets/T000042.md)
+out=$(is pull 42 .tixforge/GT-000042/ticket.md)
 has "created" "$out" "pull creates the working copy"
-eq "# T000042: ログイン" "$(sed -n 1p docs/tickets/T000042.md)" "title line"
-eq "Issue: #42" "$(sed -n 3p docs/tickets/T000042.md)" "Issue line"
+eq "# GT-000042: ログイン" "$(sed -n 1p .tixforge/GT-000042/ticket.md)" "title line"
+eq 0 "$(grep -c '^Issue:' .tixforge/GT-000042/ticket.md)" "no Issue line: the id carries the number"
 eq "$(ticket_body() { awk '/^## / { on = 1 } on' "$1"; }; ticket_body "$tmp/draft.md")" \
-   "$(awk '/^## / { on = 1 } on' docs/tickets/T000042.md)" "ticket copied verbatim"
-has "unchanged" "$(is pull 42 docs/tickets/T000042.md)" "pull again"
+   "$(awk '/^## / { on = 1 } on' .tixforge/GT-000042/ticket.md)" "ticket copied verbatim"
+has "unchanged" "$(is pull 42 .tixforge/GT-000042/ticket.md)" "pull again"
 
 # Edited on GitHub: the hash no longer matches.
 sed 's/ログインしたい/ログインしたい（直接編集）/' "$tmp/body42" > "$tmp/edited"
-issue 42 "ログイン" "$tmp/edited" OPEN "" '[{"name":"flow:out-of-sync"}]'
+issue 42 "ログイン" "$tmp/edited" OPEN "" '[{"name":"tixforge:out-of-sync"}]'
 eq edited "$(is check 42 | sed -n 1p)" "direct edit detected"
 issue 42 "ログイン（改）" "$tmp/body42"
 eq edited "$(is check 42 | sed -n 1p)" "direct title edit detected"
-issue 42 "ログイン" "$tmp/edited" OPEN "" '[{"name":"flow:out-of-sync"}]'
-is pull 42 docs/tickets/T000042.md >/dev/null 2>&1; eq 4 $? "pull refuses an edited issue"
-before=$(cat docs/tickets/T000042.md)
-is pull 42 docs/tickets/T000042.md --accept-edited --dry-run | grep -q '直接編集' && ok || ng "dry run shows the diff"
-eq "$before" "$(cat docs/tickets/T000042.md)" "dry run does not write"
-is pull 42 docs/tickets/T000042.md --accept-edited | grep -q '直接編集' && ok || ng "pull --accept-edited shows the diff"
-is push 42 docs/tickets/T000042.md >/dev/null 2>&1; eq 4 $? "push refuses an edited issue"
-out=$(is push 42 docs/tickets/T000042.md --force)
+issue 42 "ログイン" "$tmp/edited" OPEN "" '[{"name":"tixforge:out-of-sync"}]'
+is pull 42 .tixforge/GT-000042/ticket.md >/dev/null 2>&1; eq 4 $? "pull refuses an edited issue"
+before=$(cat .tixforge/GT-000042/ticket.md)
+is pull 42 .tixforge/GT-000042/ticket.md --accept-edited --dry-run | grep -q '直接編集' && ok || ng "dry run shows the diff"
+eq "$before" "$(cat .tixforge/GT-000042/ticket.md)" "dry run does not write"
+is pull 42 .tixforge/GT-000042/ticket.md --accept-edited | grep -q '直接編集' && ok || ng "pull --accept-edited shows the diff"
+is push 42 .tixforge/GT-000042/ticket.md >/dev/null 2>&1; eq 4 $? "push refuses an edited issue"
+out=$(is push 42 .tixforge/GT-000042/ticket.md --force)
 has "updated" "$out" "push --force rehashes"
-has "removed label: flow:out-of-sync" "$out" "push removes out-of-sync"
+has "removed label: tixforge:out-of-sync" "$out" "push removes out-of-sync"
 eq in-sync "$(is check 42 | sed -n 1p)" "in sync after adopting"
 
 # Local edit (/tixforge:ticket edit) then push.
-sed 's/ログインできる/ログインできる\n- [ ] ログアウトできる/' docs/tickets/T000042.md > "$tmp/t" && cat "$tmp/t" > docs/tickets/T000042.md
-has "updated" "$(is push 42 docs/tickets/T000042.md)" "push a local edit"
+sed 's/ログインできる/ログインできる\n- [ ] ログアウトできる/' .tixforge/GT-000042/ticket.md > "$tmp/t" && cat "$tmp/t" > .tixforge/GT-000042/ticket.md
+has "updated" "$(is push 42 .tixforge/GT-000042/ticket.md)" "push a local edit"
 has "ログアウトできる" "$(jq -r .body "$GH_DIR/issue-42.json")" "issue has the edit"
 eq in-sync "$(is check 42 | sed -n 1p)" "in sync after push"
-has "unchanged" "$(is push 42 docs/tickets/T000042.md)" "push again"
+has "unchanged" "$(is push 42 .tixforge/GT-000042/ticket.md)" "push again"
 
 # Markers removed on GitHub.
 printf 'just text\n' > "$tmp/nomark"
 issue 43 "x" "$tmp/nomark"
 eq no-markers "$(is check 43 | sed -n 1p)" "no markers"
-is pull 43 docs/tickets/T000043.md >/dev/null 2>&1; eq 3 $? "pull without markers"
+is pull 43 .tixforge/GT-000043/ticket.md >/dev/null 2>&1; eq 3 $? "pull without markers"
 
 # An issue made before hashes.
-grep -v 'flow:hash' "$tmp/body42" > "$tmp/nohash"
+grep -v 'tixforge:hash' "$tmp/body42" > "$tmp/nohash"
 issue 44 "ログイン" "$tmp/nohash"
 eq no-hash "$(is check 44 | sed -n 1p)" "no hash"
-has "created" "$(is pull 44 docs/tickets/T000044.md)" "pull an issue without a hash"
+has "created" "$(is pull 44 .tixforge/GT-000044/ticket.md)" "pull an issue without a hash"
 
 # Canceled issue: Status / Reason come back.
 sed '1s/.*/# <ticket-id>: やめた/' "$tmp/draft.md" > "$tmp/draft45"
 is body "$tmp/draft45" > "$tmp/body45"
 issue 45 "やめた" "$tmp/body45" CLOSED NOT_PLANNED
-jq '.comments = [{"body":"Canceled by /flow: 優先度が下がった"}]' "$GH_DIR/issue-45.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-45.json"
-is pull 45 docs/tickets/T000045.md >/dev/null
-has "Status: canceled" "$(cat docs/tickets/T000045.md)" "canceled status restored"
-has "Reason: 優先度が下がった" "$(cat docs/tickets/T000045.md)" "cancel reason restored"
+jq '.comments = [{"body":"Canceled by tixforge: 優先度が下がった"}]' "$GH_DIR/issue-45.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-45.json"
+is pull 45 .tixforge/GT-000045/ticket.md >/dev/null
+has "Status: canceled" "$(cat .tixforge/GT-000045/ticket.md)" "canceled status restored"
+has "Reason: 優先度が下がった" "$(cat .tixforge/GT-000045/ticket.md)" "cancel reason restored"
 
 # --- issue-label.sh --------------------------------------------------------
 section="issue-label.sh"
 il() { bash "$scripts/issue-label.sh" "$@"; }
-jq '.labels = [{"name":"flow:todo"},{"name":"bug"}] | .assignees = []' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
+jq '.labels = [{"name":"tixforge:todo"},{"name":"bug"}] | .assignees = []' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
 : > "$GH_DIR/calls"
-has "flow:in-progress" "$(il 42 start)" "start"
-has "--remove-label flow:todo --add-label flow:in-progress --add-assignee @me" "$(tail -1 "$GH_DIR/calls")" "start edits"
+has "tixforge:in-progress" "$(il 42 start)" "start"
+has "--remove-label tixforge:todo --add-label tixforge:in-progress --add-assignee @me" "$(tail -1 "$GH_DIR/calls")" "start edits"
 jq '.assignees = [{"login":"someone"}]' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
 il 42 start 2>/dev/null; eq 4 $? "someone else is assigned"
 il 42 start --force >/dev/null; eq 0 $? "start --force"
-jq '.assignees = [{"login":"me"}] | .labels = [{"name":"flow:in-review"}]' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
+jq '.assignees = [{"login":"me"}] | .labels = [{"name":"tixforge:in-review"}]' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
 il 42 reset >/dev/null
-has "--remove-label flow:in-review --add-label flow:todo --remove-assignee @me" "$(tail -1 "$GH_DIR/calls")" "reset edits"
+has "--remove-label tixforge:in-review --add-label tixforge:todo --remove-assignee @me" "$(tail -1 "$GH_DIR/calls")" "reset edits"
 jq '.state = "CLOSED"' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
 il 42 review 2>/dev/null; eq 3 $? "closed issue"
 

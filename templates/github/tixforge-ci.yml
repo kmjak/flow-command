@@ -1,8 +1,8 @@
-# flow-command template: flow-ci (v1). A starting point that /tixforge:project init
+# tixforge template: tixforge-ci (v1). A starting point that /tixforge:project init
 # fills in with the user: the setup steps depend on the project, the verify
-# steps are docs/flow.config.yml `commands` in the same order, so CI and
+# steps are .tixforge/config.yml `commands` in the same order, so CI and
 # /tixforge:dev verify the same things.
-name: flow-ci
+name: tixforge-ci
 
 on:
   pull_request:

@@ -4,7 +4,44 @@
 
 flow_top() { git rev-parse --show-toplevel 2>/dev/null || pwd; }
 
-flow_config() { printf '%s/docs/flow.config.yml\n' "${1:-$(flow_top)}"; }
+# Everything tixforge keeps in a project lives under .tixforge/:
+#   .tixforge/config.yml        settings (in git, shared)
+#   .tixforge/.gitignore        keeps everything else out of git
+#   .tixforge/<id>/ticket.md    a ticket (LT: the ticket itself; GT: a working
+#                               copy of the issue)
+#   .tixforge/<id>/state.md     the run of that ticket
+tf_dir() { printf '%s/.tixforge\n' "${1:-$(flow_top)}"; }
+flow_config() { printf '%s/config.yml\n' "$(tf_dir "${1:-}")"; }
+ticket_file() { printf '%s/%s/ticket.md\n' "$(tf_dir "${2:-}")" "$1"; }
+state_file() { printf '%s/%s/state.md\n' "$(tf_dir "${2:-}")" "$1"; }
+
+# ensure_workspace [top]: create .tixforge/.gitignore when it is missing, so
+# tickets and runs never show up in git status (only config.yml is tracked).
+ensure_workspace() {
+  local d
+  d=$(tf_dir "${1:-}")
+  mkdir -p "$d"
+  [ -f "$d/.gitignore" ] || printf '*\n!.gitignore\n!config.yml\n' > "$d/.gitignore"
+}
+
+# Ticket ids: LT-<6 digits> for local tickets, GT-<6 digits> for GitHub
+# issues (GT-000123 is issue #123). More than 6 digits are written as is.
+ID_PAD=6
+is_ticket_id() { printf '%s\n' "$1" | grep -Eq '^(LT|GT)-(0[0-9]{5}|[1-9][0-9]{5,})$'; }
+id_kind() { printf '%s\n' "${1%%-*}"; }                       # LT | GT
+# issue_of <id>: the issue number of a GT id, or nothing.
+issue_of() { case "$1" in GT-*) printf '%s\n' "${1#GT-}" | sed 's/^0*//' ;; esac; }
+
+# msg <key>: a fixed message in the document language, from messages.yml
+# next to the scripts (English when the language has none).
+msg() {
+  local lang file v
+  file="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/messages.yml"
+  lang=$(cfg language); lang=${lang:-ja}
+  v=$(cfg "$lang.$1" "$file")
+  [ -n "$v" ] || v=$(cfg "en.$1" "$file")
+  printf '%s\n' "$v"
+}
 
 # The YAML /tixforge:project init writes is flat: top-level keys and one level of
 # nesting, one key per line, `# comments`, optional quotes. Anything richer
@@ -87,7 +124,7 @@ cfg_list() {
   ' "$file"
 }
 
-# field <main.md> <name>: value from the state file's header table.
+# field <state.md> <name>: value from the state file's header table.
 field() {
   awk -F'|' -v k="$2" '{ key=$2; gsub(/^[ \t]+|[ \t]+$/, "", key) }
     key == k { v=$3; gsub(/^[ \t]+|[ \t]+$/, "", v); print v; exit }' "$1"

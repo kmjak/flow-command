@@ -1,11 +1,11 @@
-# flow-command template: flow-issue-sync (v1). Installed by /tixforge:project init.
+# tixforge template: tixforge-issue-sync (v1). Installed by /tixforge:project init.
 # Keeps tixforge issues in step with pull requests on the server, so the issue
 # shows the real state even when nobody runs /tixforge:dev locally:
-#   PR opened / reopened / ready for review  -> linked issues get flow:in-review
+#   PR opened / reopened / ready for review  -> linked issues get tixforge:in-review
 #   PR merged (into any branch)               -> linked issues are closed
 # "Linked" means the PR body says Closes / Fixes / Resolves #N, and only
-# issues that carry a flow:* label are touched.
-name: flow-issue-sync
+# issues that carry a tixforge:* label are touched.
+name: tixforge-issue-sync
 
 on:
   pull_request:
@@ -37,17 +37,17 @@ jobs:
             info=$(gh issue view "$n" --json state,labels \
               --jq '.state + " " + ([.labels[].name] | join(","))' 2>/dev/null) || continue
             state=${info%% *}; labels=",${info#* },"
-            case "$labels" in *,flow:*) ;; *) echo "#$n is not a tixforge issue"; continue ;; esac
+            case "$labels" in *,tixforge:*) ;; *) echo "#$n is not a tixforge issue"; continue ;; esac
             [ "$state" = OPEN ] || continue
             if [ "$ACTION" = closed ]; then
               if [ "$MERGED" = true ]; then
-                gh issue close "$n" --comment "Closed by flow-issue-sync: $PR_URL merged"
+                gh issue close "$n" --comment "Closed by tixforge-issue-sync: $PR_URL merged"
               fi
             elif [ "$DRAFT" != true ]; then
               args=""
-              for l in flow:todo flow:in-progress; do
+              for l in tixforge:todo tixforge:in-progress; do
                 case "$labels" in *,"$l",*) args="$args --remove-label $l" ;; esac
               done
-              gh issue edit "$n" $args --add-label flow:in-review
+              gh issue edit "$n" $args --add-label tixforge:in-review
             fi
           done

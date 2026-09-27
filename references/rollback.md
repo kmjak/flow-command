@@ -1,6 +1,6 @@
 # チケットの変更に合わせてフェーズを戻す
 
-チケットの内容が変わったとき（`/tixforge:ticket edit` で編集した、または dev・edit が issue から変更を取り込んだ）に、進行中の run（`docs/flow/<ticket-id>/main.md` があり、`Status` が `done`・`canceled` 以外）のフェーズを戻すかを決める手順。edit と dev が、この手順を読むよう指示する。
+チケットの内容が変わったとき（`/tixforge:ticket edit` で編集した、または dev・edit が issue から変更を取り込んだ）に、進行中の run（`.tixforge/<ticket-id>/state.md` があり、`Status` が `done`・`canceled` 以外）のフェーズを戻すかを決める手順。edit と dev が、この手順を読むよう指示する。
 
 ## 手順
 

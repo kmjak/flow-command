@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Tickets and their GitHub issues (ticket.tracker: github). The issue is the
-# source of truth; docs/tickets/<id>.md is a working copy that is not in git
+# source of truth; .tixforge/<id>/ticket.md is a working copy that is not in git
 # and is rebuilt from the issue. See references/github.md.
 #
-#   issue-sync.sh create <ticket-file>                     create the issue (flow:todo); prints number and url
+#   issue-sync.sh create <ticket-file>                     create the issue (tixforge:todo); prints number and url
 #   issue-sync.sh check <number>                           in-sync | edited | no-hash | no-markers, then details
 #   issue-sync.sh pull <number> <ticket-file> [--accept-edited] [--dry-run]
 #                                                          rebuild the working copy from the issue; prints the diff
@@ -26,7 +26,7 @@ hash_sh="$here/ticket-hash.sh"
 
 usage() { grep '^#   [a-z]' "$0" | sed 's/^#   //' >&2; exit 2; }
 
-OUT_OF_SYNC=flow:out-of-sync
+OUT_OF_SYNC=tixforge:out-of-sync
 
 # --- ticket file ------------------------------------------------------------
 
@@ -34,21 +34,16 @@ ticket_title() { sed -n '1{s/^# *//; s/^[^:]*: *//; p;}' "$1"; }
 ticket_body() { awk '/^## / { on = 1 } on' "$1"; }                  # first ## to the end
 ticket_meta() { awk '/^## / { exit } /^(Status|Reason):/' "$1"; }  # cancel lines
 
-notice() {
-  case $(cfg language) in
-    ja|'') printf '%s\n' '> [!NOTE]' '> この issue の本文は tixforge がチケットと同期しています。本文やタイトルを変えるときは直接編集せず、`/tixforge:ticket edit` を使ってください。議論はコメントでどうぞ。' ;;
-    *) printf '%s\n' '> [!NOTE]' '> This issue body is synced with a ticket by tixforge. Do not edit the body or title here; use `/tixforge:ticket edit`. Discussion is welcome in the comments.' ;;
-  esac
-}
+notice() { printf '%b\n' "$(msg issue_notice)"; }
 
 # make_body <title> <ticket-body-file>
 make_body() {
   local h
   h=$(bash "$hash_sh" hash "$1" < "$2")
   notice
-  printf '\n<!-- flow:hash:%s -->\n<!-- flow:ticket:start -->\n' "$h"
+  printf '\n<!-- tixforge:hash:%s -->\n<!-- tixforge:ticket:start -->\n' "$h"
   tr -d '\r' < "$2" | awk '{ a[NR] = $0 } END { n = NR; while (n > 0 && a[n] ~ /^[ \t]*$/) n--; for (i = 1; i <= n; i++) print a[i] }'
-  printf '<!-- flow:ticket:end -->\n'
+  printf '<!-- tixforge:ticket:end -->\n'
 }
 
 # --- issue ------------------------------------------------------------------
@@ -92,7 +87,7 @@ case $cmd in
     t=$(ticket_title "$1")
     ticket_body "$1" > "$tmpd/ticket"
     make_body "$t" "$tmpd/ticket" > "$tmpd/new"
-    url=$(gh issue create --title "$t" --body-file "$tmpd/new" --label flow:todo) || exit $?
+    url=$(gh issue create --title "$t" --body-file "$tmpd/new" --label tixforge:todo) || exit $?
     url=$(printf '%s\n' "$url" | grep -Eo 'https://[^[:space:]]+/issues/[0-9]+' | tail -1)
     echo "number: ${url##*/}"
     echo "url: $url"
@@ -120,24 +115,24 @@ case $cmd in
       no-markers) echo "no-markers: issue #$n の本文に flow の目印がありません" >&2; exit 3 ;;
       edited) [ -n "$accept" ] || { echo "edited: issue #$n は GitHub 上で直接編集されています" >&2; exit 4; } ;;
     esac
-    id=$(basename "$file" .md)
+    id="GT-$(printf '%06d' "$n")"   # issue #42 is GT-000042
     meta=""
     [ -f "$file" ] && meta=$(ticket_meta "$file")
     if [ -z "$meta" ] && [ "$state" = CLOSED ] && [ "$reason" = NOT_PLANNED ]; then
       why=$(gh issue view "$n" --json comments \
-        --jq '[.comments[].body | select(startswith("Canceled by /flow: "))] | last // ""' | head -1)
+        --jq '[.comments[].body | select(startswith("Canceled by tixforge: "))] | last // ""' | head -1)
       [ -n "$why" ] && meta="Status: canceled
-Reason: ${why#Canceled by /flow: }"
+Reason: ${why#Canceled by tixforge: }"
     fi
     {
-      printf '# %s: %s\n\nIssue: #%s\n' "$id" "$title" "$n"
+      printf '# %s: %s\n' "$id" "$title"
       [ -n "$meta" ] && printf '%s\n' "$meta"
       printf '\n'
       cat "$tmpd/ticket"
     } > "$tmpd/new"
     if [ ! -f "$file" ]; then
       if [ -n "$dry" ]; then echo "would create: $file"; cat "$tmpd/new"; exit 0; fi
-      mkdir -p "$(dirname "$file")"; cat "$tmpd/new" > "$file"
+      ensure_workspace; mkdir -p "$(dirname "$file")"; cat "$tmpd/new" > "$file"
       echo "created: $file"
     elif cmp -s "$file" "$tmpd/new"; then
       echo "unchanged: $file"

@@ -4,7 +4,7 @@
 # for those tools in every project and acts only where a tixforge run is
 # involved:
 #
-# On a run's branch (docs/flow/*/main.md whose Branch is the current branch):
+# On a run's branch (.tixforge/*/state.md whose Branch is the current branch):
 #   deny  git push --force (any form), and gh pr create whose body does not
 #         close the run's issue (Closes #N)
 #   ask   every other push / PR creation, whatever the phase, so the user
@@ -15,9 +15,10 @@
 #         MCP tools that are not reads
 # On the Base of an open run (the branch a run merges into):
 #   the same, and a commit on the Base asks too (work goes on ticket branches)
-# While the run in docs/flow/.active is before Implement (research /
-#   approach / plan), editing a file of the repository outside docs/ asks:
-#   nothing is implemented before the Plan is approved.
+# While a run is before Implement (research / approach / plan), editing a
+#   file of the repository outside docs/ and .tixforge/ asks: nothing is
+#   implemented before the Plan is approved. Not on the branch of a run that
+#   is already implementing, where that run's own work goes on.
 #
 # Detection is deliberately loose (quotes stripped, bash -c / eval / env
 # forms, git + push anywhere) because a false positive only costs a prompt.
@@ -81,12 +82,18 @@ top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)
-    [ -f "$top/docs/flow/.active" ] || exit 0
-    id=$(cat "$top/docs/flow/.active")
-    f="$top/docs/flow/$id/main.md"
-    [ -f "$f" ] || exit 0
-    status=$(field "$f" Status)
-    case "$status" in research:*|approach:*|plan:*) ;; *) exit 0 ;; esac
+    early=""; cur=$(git -C "$cwd" symbolic-ref --short -q HEAD 2>/dev/null || true)
+    for f in "$(tf_dir "$top")"/*/state.md; do
+      [ -f "$f" ] || continue
+      s=$(field "$f" Status)
+      case "$s" in
+        research:*|approach:*|plan:*)
+          id=${f%/state.md}; id=${id##*/}; early="${early}${early:+、}${id}（${s}）" ;;
+        implement:*|review:*|pr:*)
+          [ -n "$cur" ] && [ "$(field "$f" Branch)" = "$cur" ] && exit 0 ;;
+      esac
+    done
+    [ -n "$early" ] || exit 0
     path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
     [ -n "$path" ] || exit 0
     case "$path" in /*) ;; *) path="$cwd/$path" ;; esac
@@ -96,8 +103,8 @@ case "$tool" in
     while [ ! -d "$d" ]; do tail="/${d##*/}$tail"; d=${d%/*}; [ -n "$d" ] || d=/; done
     path="$(cd "$d" && pwd -P)$tail"
     case "$path" in
-      "$top"/docs/*) exit 0 ;;
-      "$top"/*) ask "run ${id} は ${status} です（Plan の承認前）。docs/ 以外のファイル（${path#$top/}）を編集しようとしています。tixforge と無関係の作業なら許可してください。" ;;
+      "$top"/docs/*|"$top"/.tixforge/*) exit 0 ;;
+      "$top"/*) ask "Plan の承認前の run があります：${early}。docs/・.tixforge/ 以外のファイル（${path#$top/}）を編集しようとしています。tixforge と無関係の作業なら許可してください。" ;;
       *) exit 0 ;;
     esac ;;
 esac
@@ -107,7 +114,7 @@ esac
 branch=$(git -C "$cwd" symbolic-ref --short -q HEAD 2>/dev/null) || exit 0
 
 state=""; base_of=""
-for f in "$top"/docs/flow/*/main.md; do
+for f in "$(tf_dir "$top")"/*/state.md; do
   [ -f "$f" ] || continue
   if [ "$(field "$f" Branch)" = "$branch" ]; then state=$f; break; fi
   if [ -z "$base_of" ] && is_open_status "$(field "$f" Status)" && [ "$(field "$f" Base)" = "$branch" ]; then
@@ -121,7 +128,7 @@ if [ -n "$state" ]; then
   base=$(field "$state" Base)
   where="ブランチ ${branch}、Status ${status}（${state#$top/}）"
 else
-  run=${base_of%/main.md}; run=${run##*/}
+  run=${base_of%/state.md}; run=${run##*/}
   where="Base ブランチ ${branch}（進行中の run ${run} の Base）"
 fi
 
@@ -276,12 +283,8 @@ fi
 
 # deny: the PR must close the run's issue. Only the precise form has a body
 # we can read; anything else is left to the prompt.
-issue=$(field "$state" Issue | tr -dc '0-9')
-if [ -z "$issue" ]; then
-  ticket=$(field "$state" Ticket)
-  [ -n "$ticket" ] && [ -f "$top/$ticket" ] \
-    && issue=$(grep -Eo -m1 '^Issue:[[:space:]]*#[0-9]+' "$top/$ticket" | tr -dc '0-9')
-fi
+run_id=${state%/state.md}; run_id=${run_id##*/}
+issue=$(issue_of "$run_id")
 if [ $precise_pr -eq 1 ] && [ -n "$issue" ]; then
   haystack=$cmd
   body_file=$(printf '%s\n' "$cmd" | grep -Eo '(--body-file|-F)([[:space:]]+|=)[^[:space:];&|]+' | head -1 \
