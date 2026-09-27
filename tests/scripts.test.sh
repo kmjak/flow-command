@@ -137,7 +137,7 @@ section="session-start.sh"
 git switch -q T000001-a
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 has "run T000001" "$out" "run on this branch"
-has "skills/dev/dev.md" "$out" "tells to re-read dev.md"
+has "skills/dev/run.md" "$out" "tells to re-read run.md"
 git switch -q main
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 eq "" "$out" "no run on main"

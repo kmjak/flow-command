@@ -69,7 +69,7 @@
    - **1 人** — 既定を `required: false` にする。GitHub では自分の PR を Approve できないため、`true` のままだと PR が完了にならないことを伝える。CI 成功・コンフリクトなしで dev は完了にし、マージはユーザーが行う。
    - **複数人** — 既定を `required: true` にする（Approve 済み・CI 成功・コンフリクトなしで完了）。
    - 人数が変わったら config の値を変えればよいことを伝える。
-8. **ゲート**（`gates`）：`gates: [approach, plan, pr]` を書く（尋ねない）。書いたゲートでは必ず止まり、書いていないフェーズは、止まる条件（未解決の疑問・レビュー指摘など）が無ければ自動で通過すること、`pr` は書かなくても必ず止まることを伝える（dev.md「承認ゲート」）。全フェーズで止めたければ `[research, approach, plan, implement, review, pr]` にできる。
+8. **ゲート**（`gates`）：`gates: [approach, plan, pr]` を書く（尋ねない）。書いたゲートでは必ず止まり、書いていないフェーズは、止まる条件（未解決の疑問・レビュー指摘など）が無ければ自動で通過すること、`pr` は書かなくても必ず止まることを伝える（skills/dev/run.md「承認ゲート」）。全フェーズで止めたければ `[research, approach, plan, implement, review, pr]` にできる。
 9. **作るもの**：一覧で提示してから作る（既にあるものは作らない・上書きしない）：
    - `docs/context/`（中身は「context」。`commit.md` は「commit 規約」）
    - `docs/context/commit.md`（「commit 規約」で決めた内容）

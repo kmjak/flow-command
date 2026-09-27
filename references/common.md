@@ -54,7 +54,7 @@
     default_branch: main  # Plan の Base の既定値。host: none ではマージ先
   review:
     required: true        # PR の Approve を必須にするか。1 人で開発するなら false
-  gates: [approach, plan, pr]  # 必ず止まるゲート。pr は書かなくても必ず止まる（dev.md「承認ゲート」）
+  gates: [approach, plan, pr]  # 必ず止まるゲート。pr は書かなくても必ず止まる（skills/dev/run.md「承認ゲート」）
   ```
   スクリプトはこの形（2 段までの入れ子・1 行 1 キー・`#` コメント）だけを読む。値に ` #` を含めるときは `"…"` で囲む。
 - `repository` が無い（古い init で作った設定）場合は、`origin` が GitHub を指していれば `host: github`、そうでなければ `host: none` として扱い、`default_branch` は `git symbolic-ref --short refs/remotes/origin/HEAD` から取る（取れなければ Plan で尋ねる）。`review` が無ければ `required: true`、`gates` が無ければ `[approach, plan, pr]` として扱う。いずれも `/tixforge:project init` の再実行で設定できることを伝える。

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook for tixforge (matcher: compact|resume). After the
 # conversation is compacted, the skill's SKILL.md is re-attached but a mode
-# file read with Read (skills/dev/dev.md) may survive only as a summary. When a
+# file read with Read (skills/dev/run.md) may survive only as a summary. When a
 # tixforge run is in progress here, this prints a reminder that Claude Code
 # adds to the context: which run, its Status, and what to re-read.
 # Prints nothing (and changes nothing) anywhere else.
@@ -32,7 +32,7 @@ id=${run%/main.md}; id=${id##*/}
 cat <<EOF
 [tixforge] この作業ディレクトリでは /tixforge:dev の run ${id} が進行中です（Status: $(field "$run" Status)、Branch: $(field "$run" Branch)）。
 会話が要約・再開されたため、手順書の細部が失われている可能性があります。tixforge の作業を続ける前に、次を Read し直してください:
-- ${here%/scripts}/skills/dev/dev.md
+- ${here%/scripts}/skills/dev/run.md
 - ${here%/scripts}/references/common.md
 - ${run#$top/}
 EOF

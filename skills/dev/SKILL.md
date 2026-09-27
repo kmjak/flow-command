@@ -23,7 +23,7 @@ allowed-tools: Read, Glob, Grep, Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/project
 
 | 起動 | 内容 | 手順ファイル |
 |------|------|--------------|
-| `/tixforge:dev <ticket-id>` | 6 フェーズで実装から PR まで進める（状態ファイルがあれば、その Status から再開する） | `${CLAUDE_SKILL_DIR}/dev.md` |
+| `/tixforge:dev <ticket-id>` | 6 フェーズで実装から PR まで進める（状態ファイルがあれば、その Status から再開する） | `${CLAUDE_SKILL_DIR}/run.md` |
 | `/tixforge:dev reset <ticket-id>` | run（`main.md`）を捨てて、次の dev で Research からやり直す | `${CLAUDE_SKILL_DIR}/reset.md` |
 | `/tixforge:dev` | 選択肢を出す（下記） | — |
 
