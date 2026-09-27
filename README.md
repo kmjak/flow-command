@@ -1,226 +1,173 @@
-# flow-command
+# tixforge
 
-チケット単位でアプリ開発を回す Claude Code スキル `/flow`。
+チケット駆動でアプリ開発を回す Claude Code の plugin。チケットを作り、1 つのチケットを **Research → Approach → Plan → Implement → Review → PR** の 6 フェーズで実装から PR まで進める。進捗は 1 つのファイルに集約するので、どのフェーズで止めても後から再開できる。
 
-プロジェクト初期化（init）・チケット作成（new）・編集（edit）・開発（dev）・やり直し（reset）・キャンセル（cancel）のモードを持つ。dev では 1 つのチケットを 6 フェーズで進め、進捗を 1 ファイルに集約することで「途中で止めて後から再開」できるようにする。
+| スキル | 内容 |
+|--------|------|
+| `/tixforge:project` | `init`：プロジェクトを tixforge で使える状態にする。`update`：設定を変える・チケット管理を切り替える・テンプレートを最新にする |
+| `/tixforge:ticket` | `create`：チケットを対話で作る。`edit`：書き換える。`cancel`：キャンセル済みにする |
+| `/tixforge:dev` | `<id>`：6 フェーズで進める（再開も同じ）。`rewind <id>`：前のフェーズに戻す |
 
-```
-Research → Approach → Plan → Implement → Review → PR
-```
+典型的な流れ：`/tixforge:project init` → `/tixforge:ticket ログイン画面を作りたい` → `/tixforge:dev LT-000001`
+
+どのスキルも明示起動専用（Claude が勝手に起動しない）。引数なしで起動すると、選択肢を出す。
 
 ## 導入
 
-Claude Code の plugin として配布している。このリポジトリが marketplace を兼ねる。
-
 ```sh
-claude plugin marketplace add kmjak/flow-command
-claude plugin install flow@flow-command
+claude plugin marketplace add kmjak/tixforge
+claude plugin install tixforge@tixforge
 ```
 
-セッションの中では `/plugin marketplace add kmjak/flow-command` → `/plugin install flow@flow-command` でもよい。次に起動するセッションから使える。
+セッションの中なら `/plugin marketplace add kmjak/tixforge` → `/plugin install tixforge@tixforge`。次に起動するセッションから使える。更新は `claude plugin marketplace update tixforge` → `claude plugin update tixforge@tixforge`（`version` を上げたリリースだけが届く）。
 
-plugin には次のものが入っている。個別に導入・登録するものは無い。
+plugin には、スキル 3 つ・Review 用の agent 2 つ（`tixforge:reviewer`・`tixforge:quality-reviewer`）・hook 2 つ（下記「hook」）が入っている。個別に導入・登録するものは無い。
 
-| 部品 | 場所 | 内容 |
-|------|------|------|
-| スキル `/flow` | `skills/flow/` | `SKILL.md`（共通規約とモードの振り分け）、`modes/*.md`（各モードの手順。起動したモードの分だけ読む）、`references/`（GitHub 連携・フェーズの戻し方）、`scripts/`（id・状態ファイル・検証・issue 同期・hook など、結果が 1 つに決まる処理）、`templates/`（init が対象プロジェクトに入れる PR テンプレートと GitHub Actions） |
-| agent `flow:reviewer`・`flow:quality-reviewer` | `agents/` | dev の Review で使う（合意とのズレ／品質） |
-| hook | `hooks/hooks.json` | `guard.sh`（PreToolUse）と `session-start.sh`（SessionStart）。下記「hook による強制」 |
+### flow（1.x）からの移行
 
-- スキルは `/flow`（正式な名前は `/flow:flow`。他に `/flow` という名前のスキルが無ければ短い方で呼べる）。
-- 更新は `claude plugin marketplace update flow-command` → `claude plugin update flow@flow-command`（または `/plugin` の画面）で受け取る。`version` を上げたリリースだけが届く。
+tixforge は、以前の `/flow`（`flow@flow-command`）の後継。
 
-### 旧方式（symlink）からの移行
-
-plugin にする前は、スキルと agent を `~/.claude/` に symlink し、hook を `~/.claude/settings.json` に登録していた。そのまま plugin を入れると、`/flow` が古いスキルに届いたり、hook が 2 回動いて確認画面が 2 度出たりするので、先に片付ける。
-
-1. symlink を消す：
+1. 古い plugin を外す：`claude plugin uninstall flow@flow-command`、`claude plugin marketplace remove flow-command`
+2. 上の「導入」で tixforge を入れる
+3. flow を使っていた各プロジェクトのルートで、移行スクリプトを実行する（まず試し実行で内容を確かめる）：
    ```sh
-   rm ~/.claude/skills/flow ~/.claude/agents/flow-reviewer.md ~/.claude/agents/flow-quality-reviewer.md
+   bash ~/.claude/plugins/marketplaces/tixforge/scripts/migrate-from-flow.sh            # 試し実行
+   bash ~/.claude/plugins/marketplaces/tixforge/scripts/migrate-from-flow.sh --apply    # 実行
+   bash ~/.claude/plugins/marketplaces/tixforge/scripts/migrate-from-flow.sh --apply --github  # GitHub のラベルと issue も
    ```
-2. `~/.claude/settings.json` の `hooks.PreToolUse`・`hooks.SessionStart` から、コマンドに `flow/scripts/guard.sh`・`flow/scripts/session-start.sh` を含む要素を消す（`/flow init` を再実行すると、確認しながら片付けを手伝う）。
-3. 上の「導入」のとおり plugin を入れ、Claude Code を起動し直す。
+   設定（`docs/flow.config.yml` → `.tixforge/config.yml`）、チケット（`docs/tickets/` → `.tixforge/<id>/ticket.md`。issue のあるものは `GT-`、無いものは `LT-`）、run（`docs/flow/` → `.tixforge/<id>/state.md`）、workflow（`flow-*.yml` → `tixforge-*.yml`）を移す。`--github` なら、`flow:*` のラベルを `tixforge:*` に変え、issue 本文の目印を書き換え、閉じた issue に `tixforge:done`・`tixforge:canceled` を付ける。最後に `git status` で確かめて commit する。
+4. `/tixforge:project init` を実行して、足りない設定（`repository.close_issues` など）を足す
 
-### flow 自体を開発する場合
+## 置き場所
 
-このリポジトリの作業ツリーを marketplace として追加すると、キャッシュを通さずにそのまま読み込まれ、編集が次のセッション（または `/reload-plugins`）から反映される。
+| パス | 内容 | git |
+|------|------|-----|
+| `.tixforge/config.yml` | 設定（下記） | 管理する（チームで共有） |
+| `.tixforge/.gitignore` | `*`・`!.gitignore`・`!config.yml`。それ以外を git から外す（プロジェクトの `.gitignore` は触らない） | 管理する |
+| `.tixforge/<id>/ticket.md` | チケット（`LT-`：これが正本。`GT-`：issue の作業用コピー） | 管理しない |
+| `.tixforge/<id>/state.md` | run の状態（Status・ブランチ・各フェーズの記録） | 管理しない |
+| `.tixforge/<id>/history/` | 前のフェーズに戻したときの古い記録 | 管理しない |
+| `docs/context/**` | サービス・ドメインの知識、commit 規約（`commit.md`） | 管理する |
 
-```sh
-claude plugin marketplace add ./          # このリポジトリのルートで
-claude plugin install flow@flow-command
-```
+チケットと run の状態は各個人の作業場所なので git に載せない。PR に載せるとレビュアーが検討過程に引っ張られるため。PR 本文には、合意した方針の結論と理由だけを書く。
 
-一度だけ試すなら `claude --plugin-dir <このリポジトリ>` でもよい。変更したら `claude plugin validate .` で manifest を確かめる。
-
-### リリース
-
-`.claude-plugin/plugin.json` の `version` を上げたものが、利用者に届く新しい版になる（`version` を上げない変更は届かない）。hook は全セッションで動くので、作業途中の変更が届かないよう、リリースのときだけ上げる。上げた commit が `main` に入ったら、`claude plugin tag` で `flow--v<version>` のタグを作ってもよい（`plugin.json` と `marketplace.json` の食い違いも確かめてくれる）。
-
-## 使い方
-
-```
-/flow init                # プロジェクト初期化：docs 雛形・検証コマンド・commit 規約・チケット管理の設定 + context 作成（再実行しても安全）
-/flow new [作りたいもの]  # チケット作成：docs/tickets/<ticket-id>.md を対話で作る（id は自動。GitHub 連携なら issue も作る）
-/flow edit <ticket-id>    # チケットを編集。進行中の run があれば、影響に応じてフェーズを戻す
-/flow dev <ticket-id>     # 6 フェーズで実装から PR まで進める
-/flow reset <ticket-id>   # run を捨てて Research からやり直す（ブランチは消すか残すか尋ねる）
-/flow cancel <ticket-id>  # チケットを canceled として残し、以後操作しない（issue は not planned で閉じる）
-/flow                     # 再開 / dev / new / init を選択肢で表示（進行中の run が無ければ再開は出ない）
-```
-
-- 明示起動専用（`disable-model-invocation: true`）。Claude が勝手に発火させることはない。
-- チケット id は `<prefix><0 埋めの番号>`（既定は `T000123`）。GitHub 連携なら issue 番号、ローカルなら連番から自動で決まる。dev には `T000123`・`123`・`#123` のどれを渡してもよい。
-- モード名を付けない `/flow <ticket-id>` は実行せず、`/flow dev <ticket-id>` のことか確認するだけ。
-- dev は状態ファイルが既にあれば、その `Status` のフェーズから再開する。無ければ新規作成して Research から始める。
-- 典型的な流れ：`/flow init` → `/flow new` → `/flow dev <id>`
-- `done` と `canceled` のチケットは edit・reset・cancel できない（変えたいなら新しいチケットを作る）。
-- `/flow new` は commit しない。ローカル運用では、チケットは実装 PR の最初の commit として `/flow dev` の Implement で commit される（まとめて複数作っても、各チケットは自分の PR に入る）。GitHub 連携ではチケットは issue にあり、手元のファイルは commit しない。
-- `/flow` を起動すると、設定と進行中の run の一覧が自動で読み込まれる（SKILL.md の `` !`…` ``）。
-
-## 規約パス
-
-| 用途 | パス |
-|------|------|
-| サービス／ドメイン知識 | `docs/context/**` |
-| チケット | `docs/tickets/<ticket-id>.md`（ローカル運用は git 管理。GitHub 連携時は issue が正本で、手元は issue から作る git 管理外のコピー） |
-| flow 設定 | `docs/flow.config.yml`（git 管理） |
-| commit 規約 | `docs/context/commit.md`（`Source:` に既存の規約ファイルのパス、無ければ本文に規約を書く） |
-| flow 状態 | `docs/flow/<ticket-id>/main.md`（git 管理外） |
-| ブランチ名 | `<ticket-id>-<slug>` |
-
-上記パスは固定規約。`/flow init` はこの規約どおりの雛形を作るだけで、パスの選択はしない。
-
-チケット本文と `docs/context/**` は `docs/flow.config.yml` の `language` で書く。既定は日本語で、`/flow init` のときに日本語／English／その他から選ぶ。flow 状態（`main.md`）の本文と PR のタイトル・本文も同じ言語で書く（見出し・`Status` の値は英語の固定キー）。
-
-検証コマンド（テスト・lint など）は `docs/flow.config.yml` の `commands` に書く。`/flow init` がプロジェクト（`package.json`・`Makefile`・CI 設定など）から候補を読み取り、ユーザーが確定したものだけを書く。dev は Implement の完了時と Review の開始時にこれを全て実行し、通るまでゲートに進まない。
+## 設定（`.tixforge/config.yml`）
 
 ```yaml
-language: ja
-commands:
+language: ja            # チケット・context・run の記録・PR を書く言語
+commands:               # dev が検証で書いた順に実行する（無ければ {}）
   test: npm test
   lint: npm run lint
 ticket:
-  tracker: github       # github | local
-  prefix: T
-  pad: 6
+  tracker: github       # create が作るチケット：github（GT-。issue と連携）| local（LT-。手元のみ）
 repository:
-  host: github          # github | none（ローカルのみ）
-  default_branch: main
+  host: github          # github（PR を出す）| none（ローカルでマージする）
+  base_branch: develop  # dev がブランチを切る元・PR の向き先
+  close_issues: release # base_branch が GitHub の default branch と違うとき：release | merge
 review:
   required: true        # PR の Approve を必須にするか（1 人なら false）
-gates: [approach, plan, pr]   # 必ず止まるゲート（pr は常に止まる）
+gates: [approach, plan, pr]  # 必ず止まるゲート（pr は常に止まる）
 ```
 
-スクリプトは awk でこの形（2 段までの入れ子・1 行 1 キー・`#` コメント）だけを読む。値に ` #` を含めるときは `"…"` で囲む。
+`/tixforge:project init` が全てのキーを書く。値を変えるのは `/tixforge:project update`。スクリプトはこの形（2 段までの入れ子・1 行 1 キー・`#` コメント）だけを読む。値は全体を `"…"` で囲むか、まったく囲まない。
 
-`repository` は `/flow init` がリポジトリの状態から決める。GitHub リポジトリが無ければ、AI と対話して作る（オーナー・名前・公開範囲・説明・デフォルトブランチ、public なら LICENSE を 1 つずつ尋ねる）／自分で作る／不要（`host: none`）から選ぶ。config にはオーナー・名前・公開範囲は書かない（remote と GitHub から分かり、書くと食い違うため）。
+## チケット
 
-`docs/flow/` は `.gitignore` に入れて git 管理しない（`/flow init` が追加する）。flow 状態は個人の作業記録であり、PR に含めるとレビュアーが検討過程に引っ張られてしまうため。
+- **id**：ローカルのチケットは `LT-000001`、GitHub issue のチケットは `GT-000123`（issue #123）。チケットの扱いは id の接頭辞で決まり、`ticket.tracker` は create が次にどちらを作るかだけを決める（切り替えても既存のチケットはそのまま使える）。
+- **入力**：`gt-000123`（大文字小文字は問わない）・`#123`（issue 番号）・`123`（`ticket.tracker` に従う）。接頭辞付きで桁数が違う id（`GT-00123`）はエラーにして、0 を補わない（打ち間違いで別のチケットを指さないため）。
+- **create**：中身はユーザーが書き、Claude は質問で引き出す（案を出すのは「考えて」と頼んだときだけ）。`/tixforge:ticket <作りたいもの>` のように文だけ渡してもよい。似たチケットがあれば示し、大きすぎれば分割を提案する。作った後は「開発を始める／別のチケットを作る／終わる」を選べる。
+- **ローカルのチケット（`LT-`）** は手元にしか無い（1 人・1 台で使う前提）。GitHub に PR を出すときは、受け入れ条件が PR 本文に転記される。public リポジトリで「コードは公開、計画は手元」にしたいときにも使える。
+- **既定と違うブランチから作る**チケット（hotfix など）は、チケットに `## Base` の節を書く。
 
-## GitHub issue 連携（任意）
-
-`/flow init` でチケット管理に GitHub を選ぶと（`ticket.tracker: github`）、チケットが issue と連携する。チームで使うときに、誰がどのチケットをどこまで進めているかを見えるようにし、id の衝突を防ぐため。
-
-- **正本は issue**：手元の `docs/tickets/` は issue から作る作業用のコピーで、git で管理しない（`.gitignore`）。dev・edit・cancel は始めるたびに issue から作り直し、違えば issue を採用する。チケットは PR に入らず、`Closes #123` で結ぶ。
-- **変更は `/flow edit` だけ**：edit は issue から取ってきたコピーを書き換えて、すぐ issue に書き戻す。issue の本文とタイトルは GitHub 上で直接編集しない（本文の冒頭で告知する）。コメントは自由。
-- **直接編集の検知**：flow は本文にハッシュ（`<!-- flow:hash:… -->`）を書く。GitHub 上で直接編集されるとハッシュが合わなくなり、dev・edit が差分を示して取り込むか尋ねる。Actions の `flow-issue-guard` を入れていれば、編集した時点で `flow:out-of-sync` ラベルが付く。
-- **issue に載せるもの**：チケットの全セクション（そのままコピー）とハッシュ、ステータスのラベル、担当者。cancel・reset のときは、方針とやめた理由をコメントに残す。flow 状態は載せない。
-- **id**：new で issue を作り、その番号から id を決める（#123 → `T000123`）。チケットには `Issue: #123` を書く。
-
-| 時点 | issue |
-|------|-------|
-| `/flow new` | 作成、`flow:todo` |
-| `/flow dev` の開始 | `flow:in-progress`、assignee に自分（他の人が assign 済みなら止まって確認） |
-| PR 作成 | `flow:in-review`。PR 本文に `Closes #123` を必ず入れ、紐付けを確認する |
-| マージ | 閉じる（`Closes` で閉じない Base 向けの PR でも、Actions か flow が閉じる） |
-| GitHub 上で直接編集 | `flow:out-of-sync`（Actions）。次の dev・edit で取り込むと外れる |
-
-`/flow init` で、サーバー側の GitHub Actions（`skills/flow/templates/github/`）を入れるか選べる：
-
-| workflow | 内容 |
-|----------|------|
-| `flow-issue-sync` | PR が開いたら issue を `flow:in-review` に、マージされたら閉じる |
-| `flow-pr-link` | `<id>-` ブランチの PR に `Closes #<番号>` があるかを検査する（必須チェックにすれば、ローカルの guard を迂回されても防げる） |
-| `flow-issue-guard` | `issues: edited`（GitHub 上でタイトル・本文が編集された）で本文のハッシュを確かめ、合わなければ `flow:out-of-sync` を付ける |
-| `flow-ci` | 検証コマンドを CI でも実行する（init がプロジェクトに合わせて埋める） |
-
-## フェーズ
+## dev の 6 フェーズ
 
 | # | フェーズ | 内容 |
 |---|----------|------|
-| 1 | Research | チケットと `docs/context/**` を読み、コードの調査は Explore agent に任せて、要求・制約・疑問点を整理する |
-| 2 | Approach | 実装方針（選択肢・採用案・トレードオフ）を決めて合意する（確認は 1 回） |
-| 3 | Plan | ブランチ名・**受け入れ条件 → 確かめ方の対応表**（テスト名／手動確認）・順序付きの commit 分割を決める（v1 は単一ブランチ） |
-| 4 | Implement | 計画どおりに実装・commit する（commit ごとには止まらない）。テストは対応表に沿って書く。最後に `verify.sh` で検証コマンドを全て実行して通るまで直し、手動確認の項目を確かめる（Claude が確認できる手段があれば任せられる） |
-| 5 | Review | 2 つの reviewer agent を並列に起動する。`flow:reviewer` は実装の経緯を知らない状態で、実装と Approach / Plan（対応表）/ チケットの乖離（相違・未実装・合意外の変更）を、`flow:quality-reviewer` はバグ・セキュリティ・性能などの品質を調べる。どちらも Bash を持たず、`review-input.sh` が書き出した差分ファイルを読む。実装したセッションは指摘を消さずに推奨と根拠を添えるだけで、項目ごとに修正（→ Implement）／方針見直し（→ Approach）／受け入れをユーザーが選ぶ |
-| 6 | PR | 明示的な確認の後にだけ push して PR を作成し、完了まで見届ける（flow はマージしない）。本文は PR テンプレートがあれば沿って書き、方針は結論と理由だけを書く。context と矛盾する変更なら、修正を同じ PR に入れるか尋ねる。`host: none` なら PR は出さず、確認の後に `default_branch` へ `git merge --no-ff` してブランチを削除する（コンフリクトしたら `--abort` して止まる） |
+| 1 | Research | チケットと `docs/context/**` を読み、コードの調査は Explore agent に任せる。チケットの未決事項を 1 項目ずつ片付ける（何を作るかの決定はチケットに書き戻し、どう作るかの決定は Approach の表へ） |
+| 2 | Approach | 実装方針（選択肢・採用案・トレードオフ）を決めて合意する |
+| 3 | Plan | Base・ブランチ・**受け入れ条件 → 確かめ方の対応表**・commit 分割。確かめ方の種別（自動／Claude（ブラウザ）／Claude（API）／ユーザー）は項目ごとにユーザーが選ぶ。Plan は常に止まる |
+| 4 | Implement | 計画どおりに実装・commit し、検証コマンド（`verify.sh`）と手動確認を通す。context と矛盾しないかもここで確かめる |
+| 5 | Review | 2 つの reviewer agent を並列に起動する。`tixforge:reviewer` は合意とのズレ（相違・未実装・合意外の変更・決定の無い未決事項）、`tixforge:quality-reviewer` は品質を見る。2 ラウンド目からは前のラウンドからの差分と、直すと決めた指摘が直ったかを見る。指摘ごとに修正・計画の見直し・方針の見直し・受け入れをユーザーが選ぶ |
+| 6 | PR | 明示的な確認の後にだけ push して PR を出し、レビュー・CI を見届ける（tixforge はマージしない）。`host: none` では、確認の後に Base へローカルでマージする |
 
-### 承認ゲート
+- **ゲート**：`gates` にあるフェーズでは必ず止まる。無いフェーズは、止まる条件（未決事項・ユーザーの判断・対処が決まっていない指摘など）が無ければ自動で通過する。PR の前は常に止まる。止まった所が再開点になる。
+- **Status**：`<phase>:in-progress`・`<phase>:awaiting-approval`、PR 後は `pr:awaiting-review`・`pr:ready-to-merge`（Approve・CI・コンフリクトの条件を満たしマージ待ち）。`done` はマージされたときだけ。
+- **巻き戻し**：`/tixforge:dev rewind <id>`（または dev の最中に「Plan からやり直したい」と頼む）で、前のフェーズに戻す。後のフェーズの記録は `history/` に移る。ブランチに commit があれば、そのブランチの上で続けるか作り直すかを選ぶ。GitHub のチケットは、ここから他の人に渡せる（手放す）。
 
-- `gates`（既定は `[approach, plan, pr]`）に書いたフェーズでは必ず停止し、要約を出して承認を待つ。この停止点が再開点になる。
-- 書いていないフェーズは、止まる条件が無ければ自動で通過する（Research：未解決の疑問、Approach：ユーザーの判断が要る、Plan：確かめ方が決まらない、Implement：手動確認が残っている、Review：指摘がある）。
-- PR の前は、`gates` や前段の自動通過に関係なく必ず停止する（強ゲート）。
-- PR 作成後は `pr:awaiting-review` で止まる。`/flow dev <ticket-id>` で再開すると `skills/flow/scripts/pr-status.sh` で状況を確認し、Approve 済み・CI 成功・コンフリクトなしなら `done`（`review.required: false` なら Approve 無しでも CI 成功・コンフリクトなしで `done`。マージは自分で行う）。CI 失敗・コンフリクト・修正依頼があれば `pr:in-progress` に戻って対応する（push 前に確認あり）。
+## GitHub 連携（`GT-` のチケット）
 
-## 状態ファイル
+- issue が正本。チケットの全文と、tixforge が書いたことを確かめるハッシュを本文に載せる。本文とタイトルは GitHub 上で直接編集せず、`/tixforge:ticket edit` で変える（直接編集されると検知して、取り込むか尋ねる）。2 人が同時に edit しても、後から書き戻す人の古いコピーは拒否される。
+- GitHub の画面で作られた issue も、`/tixforge:ticket create #<番号>` で取り込める（`project init` で issue フォームを入れておくと、見出しがそろう）。
+- tixforge が投稿するコメントは、キャンセル・巻き戻し・手放すときの判断の記録と、クローズのときの一言だけ。コメントを編集・削除しない。
 
-`docs/flow/<ticket-id>/main.md` が run の単一の真実。`scripts/state.sh` が作り、ヘッダ表（`Status`・`Branch`・`Base`・`Updated` など）も `state.sh` だけが書き換える（`Status` の値を検査し、`Updated` を自動で更新する）。各フェーズは自分のセクション（本文はドキュメント言語）を書く。
+| ラベル | 意味 |
+|--------|------|
+| `tixforge:todo` | 誰もまだ着手していない |
+| `tixforge:in-progress` | dev を進めている（assignee が担当） |
+| `tixforge:in-review` | PR のレビュー・マージ待ち |
+| `tixforge:merged` | Base（develop など）にマージ済み・リリース待ち |
+| `tixforge:done` | 完了 |
+| `tixforge:canceled` | キャンセル済み |
+| `tixforge:out-of-sync` | GitHub 上で本文かタイトルが直接編集された |
 
-`Status` のフォーマットは `<phase>:<state>`、または終端の値：
+状態ラベルは常に 1 つだけ付く。
 
-- `<phase>`：`research | approach | plan | implement | review | pr`
-- `<state>`：`in-progress`（作業中）／`awaiting-approval`（ゲートで承認待ち）／`awaiting-review`（`pr` のみ。PR のレビュー待ち）
-- 終端：`done`（完了）／`canceled`（`/flow cancel` でキャンセル済み）
+**issue が閉じる時点**：Base が GitHub の default branch なら、PR のマージで閉じる。develop などの場合は `repository.close_issues` で選ぶ：`release` なら、develop にマージした時点では開いたまま `tixforge:merged` になり、main に入った時点（最初の commit の `Closes #N` により GitHub が閉じる）で `tixforge:done`。`merge` なら develop へのマージで閉じる（Actions の `tixforge-issue-sync` が必要）。
 
-## hook による強制
+**Actions**（`project init` で任意に入れる。雛形は `templates/github/`）：
 
-plugin の `hooks/hooks.json` に次の 2 つが入っている。plugin を有効にしていれば、`/flow` を起動していないセッションや `--resume` で再開したセッションでも効く。flow の run が関わる場所でだけ判定し、それ以外のコマンド・ブランチは素通しする。
+| workflow | 内容 |
+|----------|------|
+| `tixforge-issue-sync` | PR の作成・マージと issue のクローズに合わせて、状態ラベルを付け替え、issue を閉じる |
+| `tixforge-pr-link` | `GT-<番号>-` ブランチの PR 本文に `Closes #<番号>` があるかを検査する（ブランチ保護で必須にできる） |
+| `tixforge-issue-guard` | issue が GitHub 上で直接編集されたら `tixforge:out-of-sync` とコメントを付ける |
+
+フォークからの PR には対応しない（Actions のトークンが読み取り専用になるため）。必要なら workflow を各自で改造する（`pull_request_target` にし、PR の作者がメンバーかを確かめる処理を足す。PR のコードは checkout しない）。
+
+## hook
+
+plugin を有効にしていれば、スキルを起動していないセッションや `--resume` で再開したセッションでも効く。tixforge の run が関わる場所でだけ判定し、それ以外は素通しする。
 
 | hook | イベント | 内容 |
-|------|--------|------|
-| `scripts/guard.sh` | PreToolUse（matcher `Bash\|Edit\|Write\|MultiEdit\|NotebookEdit\|mcp__.*`） | push・PR 作成・許可リスト外の git / gh 操作に**必ず確認画面を出す**。force push と `Closes` の無い PR をブロックする。Plan の承認前に `docs/` 以外を編集しようとしたら確認画面を出す |
-| `scripts/session-start.sh` | SessionStart（matcher `compact\|resume`） | 会話の要約・再開の後、進行中の run と、読み直す手順ファイル（`modes/dev.md`）を Claude に伝える |
+|------|----------|------|
+| `scripts/guard.sh` | PreToolUse（`Bash\|Edit\|Write\|MultiEdit\|NotebookEdit\|mcp__.*`） | push・PR 作成・許可リスト外の git / gh 操作に確認画面を出し、force push と `Closes` の無い PR をブロックする。Plan の承認前の run があるときのコード編集にも確認画面を出す |
+| `scripts/session-start.sh` | SessionStart（`compact\|resume`） | 会話の要約・再開の後、進行中の run と、読み直す手順ファイルを Claude に伝える |
 
 `guard.sh` の判定：
 
 | 場所 | 判定 | 対象 |
 |------|------|------|
-| run のブランチ・進行中の run の Base | **deny**（ブロック。理由は Claude に届く） | force push（`-f`・`--force-with-lease`・`+refspec` を含む）。必要ならユーザーが `! git push --force-with-lease` で自分で実行する |
-| run のブランチ | **deny** | チケットに issue があるのに、本文（`--body` / `--body-file`）に `Closes #<番号>` の無い `gh pr create` |
-| run のブランチ | **ask**（確認画面。理由はユーザーにだけ表示） | それ以外のすべての push・PR 作成。フェーズを問わない（PR ゲート前なら ⚠ 付きで表示し、途中のバックアップ push もユーザーが許可すればできる） |
-| run のブランチ・進行中の run の Base | **ask** | 許可リストに無い git / gh 操作（merge・rebase・reset・cherry-pick・clean・`commit --amend`・`branch -D`・`gh pr merge`・`gh issue close`・書き込みの `gh api` など）と、GitHub / git の MCP ツールの読み取り以外（`get_`・`list_`・`search_` などで始まらないもの） |
-| 進行中の run の Base | **ask** | Base への commit・push（flow の作業はチケットのブランチで行う） |
-| どこでも（`docs/flow/.active` の run が research・approach・plan のとき） | **ask** | リポジトリ内の `docs/` 以外のファイルへの Edit / Write（Plan の承認前に実装を始めない） |
+| run のブランチ・進行中の run の Base | **deny** | force push（`-f`・`--force-with-lease`・`+refspec`、`bash -c`・`eval` 経由も）。必要ならユーザーが `! git push --force-with-lease` で自分で実行する |
+| `GT-` の run のブランチ | **deny** | 本文に `Closes #<番号>` の無い `gh pr create` |
+| run のブランチ | **ask** | それ以外のすべての push・PR 作成（確認画面に Status・ブランチ・Base・PR の状況が出る） |
+| run のブランチ・進行中の run の Base | **ask** | 許可リストに無い git / gh 操作（merge・rebase・reset・cherry-pick・clean・`commit --amend`・`branch -D`・`switch -f`・`checkout -B`・`fetch +refspec`・`gh pr merge`・書き込みの `gh api` など）と、GitHub / git の MCP ツールの読み取り以外 |
+| 進行中の run の Base | **ask** | Base への commit・push |
+| Plan の承認前の run があるとき | **ask** | `docs/`・`.tixforge/` 以外のファイルへの Edit / Write（Implement 以降の run のブランチの上では出さない） |
 
-- 許可リスト（確認画面を出さない git / gh）：`status`・`diff`・`log`・`show`・`fetch`・`switch`・`add`・`rm`・`mv`・`commit`（Base と `--amend` 以外）・`checkout -b`・`branch`（一覧・作成）・`stash`（`drop`・`clear` 以外）・`grep`・`blame` など読み取り系、`gh pr view|list|checks|diff|status`・`gh issue view|list`・`gh run view|list|watch`・読み取りの `gh api` など。flow のスクリプト（`issue-sync.sh` など）が内部で実行する gh は判定しない（手順の中で確認を取るため）。
-- `permissionDecision: "ask"` は、`permissions.allow` に `git push` を入れていても、auto モードでも確認画面を出す。確認画面には Status・ブランチ・Base・（PR なら）`Closes #<番号>` が出る。
-- 検知はあえて広めにしている：正確なパターンに加えて、クォートを外したうえで `git` と `push`、`gh` と `pr create`、`gh api` と `pulls` の組み合わせを拾う（`bash -c "git push"`・`eval`・`env git push` など）。誤検知しても確認画面が出るだけ。
-- `jq` が無くても flow と無関係なリポジトリ・ブランチには影響しない。flow のブランチでは、詳しく判定できないので push らしいコマンドに確認画面を出す（許可リスト・MCP・編集の判定は jq が無いと行わない）。
-- 止めるのは Claude のツール呼び出しだけで、ユーザーが自分で実行する git / gh は止めない。
-- **事故防止の仕組みであって、完全な防御ではない。** Claude が実行できるコマンドは、どんな検知もすり抜ける書き方ができる（スクリプトファイル経由など）。また、flow のブランチかどうかはセッションの作業ディレクトリで判定するので、`cd 別のリポジトリ && git push` や `git -C 別のパス push` は、その別のリポジトリとしては判定しない。確認画面で拒否されたら言い換えて再実行しないよう、SKILL.md で指示している。サーバー側で確実に守りたいことは、Actions（`flow-pr-link`）とブランチ保護で守る。
-- plugin を無効にすると hook も止まり、ゲートは SKILL.md の指示だけで守られる。
+- `permissionDecision: "ask"` は、`permissions.allow` に `git push` を入れていても、auto モードでも確認画面を出す。
+- 検知はあえて広めにしている（引用符を外して `git` と `push` の組み合わせを拾うなど）。誤検知しても確認画面が出るだけ。commit メッセージに「push -f」と書いただけならブロックしない（確認画面に注記が付く）。
+- `jq` が無いと詳しく判定できないので、run のブランチでは push らしいコマンドに確認画面を出す（許可リスト・MCP・編集の判定は行わない）。
+- **事故防止の仕組みであって、完全な防御ではない。** Claude が実行できるコマンドは、どんな検知もすり抜ける書き方ができる。サーバー側で確実に守りたいことは、Actions（`tixforge-pr-link`）とブランチ保護で守る。
 
-### テスト
+## 困ったとき
 
-`tests/guard.test.sh`（一時ディレクトリにリポジトリと状態ファイルを作り、hook と同じ JSON を流して pass / ask / deny を見る）と `tests/scripts.test.sh`（`ticket-id.sh`・`state.sh`・`verify.sh`・`issue-sync.sh`・`issue-label.sh`・`pr-status.sh` など。gh はスタブに置き換える）で確かめる。`scripts.test.sh` には jq が必要。GitHub Actions では Linux で実行する。macOS の bash 3.2 でも動くことは手元で確かめる。
+- **run の状態ファイルが壊れた**：`.tixforge/<id>/state.md` を消せば、`/tixforge:dev <id>` で最初から始まる（チケットは残る）。
+- **確認画面が出すぎる**：スキルの `allowed-tools` の事前承認は、起動したターンにだけ有効。常に許可したいスクリプトは `.claude/settings.json` の `permissions.allow` に足す。
+- 起動時の `` !`bash …/project-status.sh` `` などは、`deny` に `Bash(bash:*)` のような広いルールがあるとスキルの起動自体が失敗する。
+
+## tixforge 自体を開発する
 
 ```sh
+claude --plugin-dir .                     # 作業ツリーをそのまま読み込む
+claude plugin validate .                  # manifest の確認
 bash tests/guard.test.sh && bash tests/scripts.test.sh
-/bin/bash tests/guard.test.sh && /bin/bash tests/scripts.test.sh   # macOS: bash 3.2
+/bin/bash tests/guard.test.sh && /bin/bash tests/scripts.test.sh   # macOS の bash 3.2
 ```
 
-## 注意
-
-- `allowed-tools`（Read / Glob / Grep と、`status.sh`・`ticket-id.sh`・`state.sh` の実行）の事前承認は、スキルを起動したターンにだけ有効。次のメッセージ以降は通常の許可プロンプトが出る。常時許可したい場合は `.claude/settings.json` の `permissions.allow` に追加する。
-- 起動時の `` !`bash …/status.sh` `` は、許可ルールで拒否されるとスキルの起動自体が失敗する。`deny` に `Bash(bash:*)` のような広いルールを入れている場合は注意。
-- Plan 以降は git リポジトリが、PR（`host: github`）にはリモートと `gh` CLI が必要。GitHub 連携を使う場合は new から `gh` の認証が必要（未認証なら `! gh auth login` を案内して止まる）。
-- `scripts/` のスクリプトは Bash で実行するので、初回は許可プロンプトが出る。
-
-## v2 予定
-
-- GitHub issue 以外のチケット／知識ソース（Jira / GitHub Projects / Confluence）
-- 複数ブランチ実行とサブチケット分割（`docs/flow/<ticket-id>/<subticket>.md`）
-- バックログ（チケットの分解・依存関係・優先度・次の 1 枚の提示）
+- `skills/<名前>/SKILL.md` が起動時に読まれ、共通規約（`references/common.md`）を `scripts/common-rules.sh` で差し込む。手順は `skills/<名前>/*.md` と `references/github/*.md` に分け、使う場面で読む。
+- 結果が 1 つに決まる処理は `scripts/` に置き、テストで確かめる（gh はスタブに置き換える。`scripts.test.sh` には jq が要る）。
+- スクリプトの中で、`$var` の直後に全角文字を続けない（`${var}` と書く）。テストが検出する。
+- **リリース**：`.claude-plugin/plugin.json` の `version` を上げたものが、利用者に届く新しい版になる。上げた commit が `main` に入ると、Discord に前の版からマージされた PR の一覧が通知される（`.github/workflows/discord-merge-notify.yml`）。`claude plugin tag` で `tixforge--v<version>` のタグを作ってもよい。
 
 ## License
 
