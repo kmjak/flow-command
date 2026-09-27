@@ -60,7 +60,7 @@
   gates: [approach, plan, pr]  # 必ず止まるゲート。pr は書かなくても必ず止まる（skills/dev/run.md「承認ゲート」）
   ```
   スクリプトはこの形（2 段までの入れ子・1 行 1 キー・`#` コメント）だけを読む。値に ` #` を含めるときは `"…"` で囲む。
-- `repository` が無い（古い init で作った設定）場合は、`origin` が GitHub を指していれば `host: github`、そうでなければ `host: none` として扱い、`base_branch` は `git symbolic-ref --short refs/remotes/origin/HEAD` から取る（取れなければ Plan で尋ねる）。`review` が無ければ `required: true`、`gates` が無ければ `[approach, plan, pr]` として扱う。いずれも `/tixforge:project init` の再実行で設定できることを伝える。
+- 設定に必要なキーが無ければ、推測の既定値で補わず、`/tixforge:project init` の再実行で足せることを伝える（init は全てのキーを書く）。`review.required` が無ければ `true`、`gates` が無ければ `[approach, plan, pr]` として扱う。
 - `ticket.tracker: github` は `repository.host: github` のときだけ使える。
 - 上記パスは固定規約。`init` はこの規約どおりの雛形を作るだけで、パスの選択はしない。
 - どのサブコマンドでも、既存ファイルを黙って上書きしない（`GT-` の作業用コピー `.tixforge/<id>/ticket.md` は、issue から作り直すものなので例外。作り直すときは差分を示す）。
@@ -95,7 +95,6 @@
 - **hook による強制**（tixforge plugin の `hooks/hooks.json` に同梱。plugin を有効にしていれば、tixforge の起動や `--resume` に関係なく全セッションで効く）：
   - `scripts/guard.sh`（PreToolUse）— flow の run が関わる場所でだけ判定する。run のブランチと、進行中の run の Base では、push・PR 作成・許可リストに無い git / gh 操作（merge・rebase・reset・`gh pr merge`・`gh api` の書き込みなど）・GitHub / git の MCP の書き込みのたびに確認画面を出し、force push と `Closes #<番号>` の無い PR 作成をブロックする。Base への commit も確認画面を出す。Plan の承認前の run（`research`・`approach`・`plan`）があるときに、`docs/`・`.tixforge/` 以外のファイルを Edit / Write しようとしたときも確認画面を出す（Implement 以降に進んだ run のブランチの上では出さない）。
   - `scripts/session-start.sh`（SessionStart、`compact|resume`）— 会話の要約・再開の後、進行中の run と読み直すファイルを伝える。
-  - 同じ hook をユーザー設定（`~/.claude/settings.json`）にも登録していると 2 回動く。`/tixforge:project init` の「古い導入の片付け」で外す。
   - **ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。
   - 確認画面はチャットでの承認の代わりではない。PR フェーズのゲートでは、これまでどおりチャットで確認を得てから push / PR 作成を実行する（確認画面はその後にもう一度出る）。
 - 外部システムの操作は、`GT-` のチケットの GitHub issue に対する、`references/github/` に定めた操作だけにする。issue のコメントは自由で、tixforge はコメントを編集・削除しない。それ以外の外部システム（Jira など）にチケットを作らない。
