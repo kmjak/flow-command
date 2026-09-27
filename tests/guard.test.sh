@@ -239,6 +239,25 @@ expect ask  "$flow" 'gh api -X PUT repos/o/r/pulls/9/merge'
 expect ask  "$flow" 'bash -c "git merge main"'
 expect ask  "$flow" 'cd . && git reset --hard'
 reason_has "$flow" 'gh pr merge 9' 'gh pr merge'
+# Forced forms of switch / checkout / fetch lose work or move a branch.
+expect pass "$flow" 'git switch -c T000001-login-3'
+expect pass "$flow" 'git fetch origin'
+expect pass "$flow" 'git fetch origin main:main'
+expect ask  "$flow" 'git switch -f main'
+expect ask  "$flow" 'git switch --discard-changes main'
+expect ask  "$flow" 'git switch -C T000001-login HEAD~1'
+expect ask  "$flow" 'git switch --force-create T000001-login HEAD~1'
+expect ask  "$flow" 'git checkout -B T000001-login HEAD~1'
+expect ask  "$flow" 'git checkout -f -b x'
+expect ask  "$flow" 'git fetch origin +main:main'
+expect ask  "$flow" 'git fetch -f origin main:main'
+
+# "push -f" in a commit message is not a force push: it asks, it is not denied.
+state="force push wording"
+expect ask  "$flow" "git commit -m 'docs: explain why push -f is banned'"
+reason_has "$flow" "git commit -m 'docs: explain why push -f is banned'" 'force push の可能性'
+expect deny "$flow" 'git add -A && git push -f origin T000001-login'
+expect deny "$flow" 'eval "git push --force-with-lease"'
 
 # The Base of an open run.
 state="Base of an open run"
@@ -255,6 +274,15 @@ set_state done
 expect pass "$flow" 'git merge --no-ff T000001-login'   # the run is closed
 set_state implement:in-progress
 git -C "$flow" checkout -q T000001-login
+
+# A push on the branch of a finished run says so instead of "before the PR gate".
+state="finished run"
+set_state done
+expect ask  "$flow" 'git push origin T000001-login'
+reason_has "$flow" 'git push origin T000001-login' '完了済み'
+set_state canceled
+reason_has "$flow" 'git push origin T000001-login' 'canceled'
+set_state implement:in-progress
 
 # MCP tools: GitHub / git writes ask where a run is involved.
 state="MCP"

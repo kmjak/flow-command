@@ -8,20 +8,29 @@ flow_config() { printf '%s/docs/flow.config.yml\n' "${1:-$(flow_top)}"; }
 
 # The YAML /tixforge:project init writes is flat: top-level keys and one level of
 # nesting, one key per line, `# comments`, optional quotes. Anything richer
-# (anchors, multi-line strings, deeper nesting) is not supported.
+# (anchors, multi-line strings, deeper nesting) is not supported. CRLF line
+# ends are accepted.
 _cfg_awk='
-function clean(v,   q, i) {
+function clean(v,   q, i, rest, r) {
   sub(/^[ \t]+/, "", v)
   q = substr(v, 1, 1)
   if (q == "\"" || q == "\047") {           # quoted: up to the closing quote
     i = index(substr(v, 2), q)
-    if (i > 0) return substr(v, 2, i - 1)
+    if (i > 0) {
+      rest = substr(v, i + 2); r = rest; sub(/^[ \t]+/, "", r)
+      if (r == "" || substr(r, 1, 1) == "#") return substr(v, 2, i - 1)
+      # More follows the closing quote ("./run tests.sh" --fast): the quotes
+      # belong to the value, so keep them and drop only a trailing comment.
+      sub(/[ \t]+#.*$/, "", rest); sub(/[ \t]+$/, "", rest)
+      return substr(v, 1, i + 1) rest
+    }
   }
   sub(/[ \t]+#.*$/, "", v); sub(/[ \t]+$/, "", v)
   return v
 }
 function keyof(s) { sub(/^[ \t]+/, "", s); sub(/:.*/, "", s); return s }
 function valof(s) { sub(/^[^:]*:/, "", s); return clean(s) }
+{ sub(/\r$/, "") }
 /^[ \t]*(#|$)/ { next }
 '
 

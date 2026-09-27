@@ -59,6 +59,15 @@ printf 'gates:\n  - plan\n  - pr\n' > "$tmp/block.yml"
 eq "plan,pr" "$(cfg_list gates "$tmp/block.yml" | paste -sd, -)" "block list"
 eq "test,lint" "$(cfg_map commands | cut -f1 | paste -sd, -)" "command keys in order"
 eq "echo testing && exit 0" "$(cfg_map commands | sed -n 1p | cut -f2)" "command value"
+# A value quoted only in part keeps its quotes and the rest of the line.
+printf 'commands:\n  test: "./run tests.sh" --fast   # note\n  lint: "a # b"   # note\n' > "$tmp/partial.yml"
+eq '"./run tests.sh" --fast' "$(cfg_map commands "$tmp/partial.yml" | sed -n 1p | cut -f2)" "partly quoted value"
+eq 'a # b' "$(cfg_map commands "$tmp/partial.yml" | sed -n 2p | cut -f2)" "fully quoted value"
+# CRLF line ends do not leak into values.
+printf 'language: ja\r\nticket:\r\n  tracker: github\r\ngates: [plan, pr]\r\n' > "$tmp/crlf.yml"
+eq github "$(cfg ticket.tracker "$tmp/crlf.yml")" "CRLF nested value"
+eq ja "$(cfg language "$tmp/crlf.yml")" "CRLF top-level value"
+eq "plan,pr" "$(cfg_list gates "$tmp/crlf.yml" | paste -sd, -)" "CRLF list"
 cfg_has commands && ok || ng "cfg_has commands"
 cfg_has nothing && ng "cfg_has nothing" || ok
 
@@ -131,6 +140,12 @@ has "gates=approach,plan,pr" "$out" "gates"
 has "T000001: Status implement:in-progress" "$out" "open run"
 out=$(cd "$tmp" && bash "$scripts/project-status.sh"); eq 0 $? "outside a repo exits 0"
 has "flow.config.yml が無い" "$out" "no config"
+cp docs/flow.config.yml "$tmp/keep-gates.yml"
+sed 's/^gates: .*/gates: []/' "$tmp/keep-gates.yml" > docs/flow.config.yml
+has "gates=[]（pr のみ）" "$(bash "$scripts/project-status.sh")" "explicit empty gates"
+grep -v '^gates:' "$tmp/keep-gates.yml" > docs/flow.config.yml
+has "gates=（未設定）" "$(bash "$scripts/project-status.sh")" "missing gates"
+cp "$tmp/keep-gates.yml" docs/flow.config.yml
 
 # --- session-start.sh ------------------------------------------------------
 section="session-start.sh"
@@ -175,6 +190,30 @@ paths=$(bash "$scripts/review-input.sh" T000001 main)
 diff_file=$(printf '%s\n' "$paths" | sed -n 1p)
 has "+change" "$(cat "$diff_file")" "diff"
 has "/.git/flow/review/T000001/" "$diff_file" "outside docs/flow"
+eq 3 "$(printf '%s\n' "$paths" | grep -c .)" "three paths without --since"
+# --since writes the change after a given commit as delta.patch.
+since=$(git rev-parse HEAD)
+echo more > more.txt && git add more.txt && git commit -q -m more
+paths=$(bash "$scripts/review-input.sh" T000001 main --since "$since")
+delta=$(printf '%s\n' "$paths" | sed -n 4p)
+has "delta.patch" "$delta" "delta path"
+has "+more" "$(cat "$delta")" "delta has the new change"
+case "$(cat "$delta")" in *"+change"*) ng "delta has only the new change" ;; *) ok ;; esac
+has "+change" "$(cat "$(printf '%s\n' "$paths" | sed -n 1p)")" "full diff still has everything"
+bash "$scripts/review-input.sh" T000001 main >/dev/null
+[ -f "$delta" ] && ng "delta removed without --since" || ok
+bash "$scripts/review-input.sh" T000001 main --since nope 2>/dev/null; eq 2 $? "unknown --since commit"
+# A local base behind origin/<base>: others' commits there are not this run's.
+git switch -q main
+echo other > other.txt && git add other.txt && git commit -q -m other
+git update-ref refs/remotes/origin/main HEAD
+git reset -q --hard HEAD~1
+git switch -q T000001-a
+git merge -q --no-edit origin/main
+paths=$(bash "$scripts/review-input.sh" T000001 main)
+case "$(cat "$(printf '%s\n' "$paths" | sed -n 1p)")" in *"+other"*) ng "stale local base: others' commit excluded" ;; *) ok ;; esac
+has "+change" "$(cat "$(printf '%s\n' "$paths" | sed -n 1p)")" "stale local base: own change kept"
+git update-ref -d refs/remotes/origin/main
 git switch -q main
 
 # --- ticket-hash.sh --------------------------------------------------------
@@ -330,7 +369,7 @@ prs() { FLOW_PR_JSON="$tmp/pr.json" bash "$scripts/pr-status.sh" x | sed -n 1p; 
 # pr <state> <mergeable> <reviewDecision> <latestReviews-json> <checks-json>
 pr() {
   jq -n --arg s "$1" --arg m "$2" --arg d "$3" --argjson r "$4" --argjson c "$5" \
-    '{url: "https://github.com/o/r/pull/9", state: $s, mergeable: $m, reviewDecision: $d, latestReviews: $r, statusCheckRollup: $c}' > "$tmp/pr.json"
+    '{url: "https://github.com/o/r/pull/9", state: $s, isDraft: false, mergeable: $m, reviewDecision: $d, latestReviews: $r, statusCheckRollup: $c}' > "$tmp/pr.json"
 }
 ok_check='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"}]'
 bad_check='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE"}]'
@@ -347,6 +386,16 @@ pr OPEN MERGEABLE "" '[]' "$ok_check";                eq ready "$(prs)" "ready w
 pr OPEN MERGEABLE "" '[]' '[]';                       eq ready "$(prs)" "ready, no checks"
 pr OPEN MERGEABLE "" '[]' "$run_check";               eq pending "$(prs)" "checks running"
 pr OPEN UNKNOWN "" '[]' "$ok_check";                  eq pending "$(prs)" "mergeability unknown"
+# A draft cannot be merged: never ready or approved.
+pr OPEN MERGEABLE APPROVED "$approved" "$ok_check"
+jq '.isDraft = true' "$tmp/pr.json" > "$tmp/pr2.json" && mv "$tmp/pr2.json" "$tmp/pr.json"
+eq pending "$(prs)" "draft"
+has "draft: true" "$(FLOW_PR_JSON="$tmp/pr.json" bash "$scripts/pr-status.sh" x)" "draft detail"
+# No check at all is reported as such, so the caller can tell it from success.
+pr OPEN MERGEABLE "" '[]' '[]'
+has "ci: none" "$(FLOW_PR_JSON="$tmp/pr.json" bash "$scripts/pr-status.sh" x)" "no checks detail"
+pr OPEN MERGEABLE "" '[]' "$ok_check"
+has "ci: success" "$(FLOW_PR_JSON="$tmp/pr.json" bash "$scripts/pr-status.sh" x)" "checks detail"
 
 echo "scripts: $pass passed, $fail failed"
 [ $fail -eq 0 ]
