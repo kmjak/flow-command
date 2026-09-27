@@ -17,6 +17,9 @@ fi
 
 if [ -f "$conf" ]; then
   gates=$(cfg_list gates "$conf" | paste -sd, -)
+  # An explicit empty list (no gate but the PR one) is not the same as a
+  # missing key.
+  [ -z "$gates" ] && cfg_has gates "$conf" && gates="[]（pr のみ）"
   echo "- 設定（docs/flow.config.yml）: language=$(cfg language "$conf")" \
     "tracker=$(cfg ticket.tracker "$conf")" \
     "host=$(cfg repository.host "$conf")" \

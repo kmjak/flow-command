@@ -12,8 +12,11 @@
 #   approved           approved, all checks passed (or none), no conflicts
 #   ready              not approved yet, but all checks passed (or none) and no conflicts;
 #                      done for review.required: false, pending otherwise
-#   pending            anything else (awaiting review, checks running, mergeability unknown)
-# Following lines are key: value details.
+#   pending            anything else (a draft, awaiting review, checks running,
+#                      mergeability unknown)
+# Following lines are key: value details. `ci: none` means no check is
+# registered at all: the repository has no CI, or the checks of a PR just
+# opened have not started yet; the caller tells the two apart.
 #
 # Precedence: merged > closed > conflict > ci_failing > changes_requested > approved > ready > pending
 #
@@ -44,6 +47,7 @@ filter='
     | ([$checks[] | select(.result == "failure") | .name]) as $failing
     | (if ($failing | length) > 0 then "failure"
        elif ([$checks[] | select(.result == "pending")] | length) > 0 then "pending"
+       elif ($checks | length) == 0 then "none"
        else "success" end) as $ci
     | ([.latestReviews[]? | select(.state == "CHANGES_REQUESTED") | .author.login]) as $requesters
     | ([.latestReviews[]? | select(.state == "APPROVED") | .author.login]) as $approvers
@@ -56,14 +60,16 @@ filter='
        elif .mergeable == "CONFLICTING" then "conflict"
        elif $ci == "failure" then "ci_failing"
        elif $review == "changes_requested" then "changes_requested"
-       elif $review == "approved" and $ci == "success" and .mergeable == "MERGEABLE" then "approved"
-       elif $ci == "success" and .mergeable == "MERGEABLE" then "ready"
+       elif .isDraft == true then "pending"
+       elif $review == "approved" and ($ci == "success" or $ci == "none") and .mergeable == "MERGEABLE" then "approved"
+       elif ($ci == "success" or $ci == "none") and .mergeable == "MERGEABLE" then "ready"
        else "pending" end) as $verdict
     | $verdict,
       "url: \(.url)",
       "review: \($review)",
       "ci: \($ci)",
       "mergeable: \(.mergeable)",
+      "draft: \(.isDraft // false)",
       "failing_checks: \($failing | join(", "))",
       "changes_requested_by: \($requesters | join(", "))",
       "approved_by: \($approvers | join(", "))",
@@ -74,6 +80,6 @@ if [ -n "${FLOW_PR_JSON:-}" ]; then
   jq -r "$filter" "$FLOW_PR_JSON"
 else
   gh pr view "$1" \
-    --json url,state,mergeable,reviewDecision,latestReviews,statusCheckRollup \
+    --json url,state,isDraft,mergeable,reviewDecision,latestReviews,statusCheckRollup \
     --jq "$filter"
 fi

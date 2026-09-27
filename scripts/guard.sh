@@ -179,9 +179,14 @@ has_arg() { # has_arg <pattern>...: one of the remaining words matches
 }
 git_ok() { # git_ok <sub>
   case "$1" in
-    ''|push|status|diff|log|show|rev-parse|symbolic-ref|ls-files|ls-tree|ls-remote|check-ignore|merge-base|fetch|switch|add|rm|mv|blame|grep|describe|cat-file|for-each-ref|rev-list|shortlog|name-rev|show-ref|diff-tree|diff-files|diff-index|help|version|--version) return 0 ;;
+    ''|push|status|diff|log|show|rev-parse|symbolic-ref|ls-files|ls-tree|ls-remote|check-ignore|merge-base|add|rm|mv|blame|grep|describe|cat-file|for-each-ref|rev-list|shortlog|name-rev|show-ref|diff-tree|diff-files|diff-index|help|version|--version) return 0 ;;
     commit) [ -z "$state" ] && return 1; has_arg --amend && return 1; return 0 ;;
-    checkout) [ -z "$rest" ] || has_arg -b -B ;;
+    # Switching and fetching are safe unless forced: -f / --discard-changes
+    # throw away local changes, -C / -B reset an existing branch, and a
+    # +refspec or --force overwrites a local branch.
+    switch) ! has_arg -f --force --discard-changes -C '--force-create' '--force-create=*' ;;
+    checkout) [ -z "$rest" ] || { has_arg -b && ! has_arg -B -f --force; } ;;
+    fetch) ! has_arg '+*' '*:+*' -f --force ;;
     branch) ! has_arg '-[dDmMcCfu]' '--delete' '--move' '--copy' '--force' '--set-upstream-to*' '--unset-upstream' '--edit-description' ;;
     stash) [ -z "$rest" ] || has_arg push list show pop apply save ;;
     tag) [ -z "$rest" ] || has_arg -l '--list' ;;
@@ -247,19 +252,26 @@ set +f
 
 [ $is_push -eq 1 ] || [ $is_pr_create -eq 1 ] || [ -n "$other" ] || exit 0
 
-# deny: force push, in any form, inside the push segment(s).
+# deny: force push, in any form, inside a segment that is a git push (quotes
+# removed; bash -c / eval / env / sudo wrappers allowed). A force flag seen
+# only by the loose match (e.g. "push -f" inside a commit message) asks.
+force_note=""
 if [ $is_push -eq 1 ]; then
-  push_args=$(printf '%s\n' "$norm" | grep -Eo 'push([[:space:]][^;&|]*)?' || true)
-  if printf '%s\n' "$push_args" \
-      | grep -Eq '(^|[[:space:]])(--force|--force-with-lease(=[^[:space:]]*)?|--force-if-includes|-[A-Za-z]*f[A-Za-z]*)([[:space:]]|$)|[[:space:]]\+[^[:space:]]'; then
+  force_re='(^|[[:space:]])(--force|--force-with-lease(=[^[:space:]]*)?|--force-if-includes|-[A-Za-z]*f[A-Za-z]*)([[:space:]]|$)|[[:space:]]\+[^[:space:]]'
+  wrap='((command|env|sudo|exec|eval|nohup|time|(ba|z)?sh[[:space:]]+-c)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*'
+  push_seg_re="^[[:space:]]*${wrap}git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+|[[:space:]]+--?[A-Za-z][A-Za-z-]*(=[^[:space:]]+)?)*[[:space:]]+push([[:space:]]|$)"
+  push_segs=$(printf '%s\n' "$unquoted" | tr ';&|(){}`' '\n\n\n\n\n\n\n\n' | grep -E "$push_seg_re" || true)
+  if [ -n "$push_segs" ] && printf '%s\n' "$push_segs" | sed -E 's/.*[[:space:]]push([[:space:]]|$)/ /' | grep -Eq "$force_re"; then
     deny "force push は禁止です（ブランチ ${branch}）。履歴の書き換えが本当に必要なら、ユーザー自身が ! git push --force-with-lease などで実行してください。"
   fi
+  printf '%s\n' "$norm" | grep -Eo 'push([[:space:]][^;&|]*)?' | grep -Eq "$force_re" \
+    && force_note="（force push の可能性あり。コマンドを確認してください）"
 fi
 
 if [ -z "$state" ]; then
   # On the Base of an open run.
   if [ $is_push -eq 1 ]; then what="push"; elif [ $is_pr_create -eq 1 ]; then what="PR 作成"; else what=$other; fi
-  ask "⚠ ${where} で ${what} を実行しようとしています。tixforge の作業はチケットのブランチで行います。承認しますか？"
+  ask "⚠ ${where} で ${what} を実行しようとしています。tixforge の作業はチケットのブランチで行います。承認しますか？${force_note}"
 fi
 
 # deny: the PR must close the run's issue. Only the precise form has a body
@@ -306,9 +318,12 @@ case "$status" in
     else
       note="⚠ ## PR に URL がありません。${obj}承認しますか？"
     fi ;;
+  done|canceled)
+    note="⚠ このブランチの run は ${status} です（完了済み）。${obj}承認しますか？" ;;
   *)
     note="⚠ まだ PR ゲート前です。${obj}承認しますか？" ;;
 esac
+note="${note}${force_note}"
 if { [ $is_push -eq 1 ] && [ $precise_push -eq 0 ]; } || { [ $is_pr_create -eq 1 ] && [ $precise_pr -eq 0 ]; }; then
   note="${note}（コマンドの形から ${what} の可能性があると判断）"
 fi
