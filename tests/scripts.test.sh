@@ -265,9 +265,24 @@ set -- "${args[@]}"
 case "$1 $2" in
   "issue view") jq -r "$jqf" "$GH_DIR/issue-$3.json" ;;
   "api user") echo me ;;
-  "api repos/"*)   # repos/{owner}/{repo}/issues/<n>: an issue, or a PR when the fixture has pull_request
-    f="$GH_DIR/issue-${2##*/}.json"
-    if [ -f "$f" ]; then jq -r "$jqf" "$f"; else echo "gh: Not Found (HTTP 404)" >&2; exit 1; fi ;;
+  "api repos/"*)   # .../issues/<n>: an issue, or a PR when the fixture has pull_request; .../issues/<n>/events
+    case $2 in
+      */events) n=${2%/events}; n=${n##*/}; jq -r "(.events // []) | $jqf" "$GH_DIR/issue-$n.json" ;;
+      *) f="$GH_DIR/issue-${2##*/}.json"
+         if [ -f "$f" ]; then jq -r "$jqf" "$f"; else echo "gh: Not Found (HTTP 404)" >&2; exit 1; fi ;;
+    esac ;;
+  "auth status") [ -z "${GH_NO_AUTH:-}" ] ;;
+  "repo view") echo o/r ;;
+  "label list") cat "$GH_DIR/labels" 2>/dev/null || true ;;
+  "label create") echo "$3" >> "$GH_DIR/labels" ;;
+  "issue comment")
+    n=$3; shift 3
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --body-file) jq --rawfile b "$2" '.comments += [{body: $b}]' "$GH_DIR/issue-$n.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-$n.json"; shift 2 ;;
+        *) shift ;;
+      esac
+    done ;;
   "issue create")
     echo "https://github.com/o/r/issues/42" ;;
   "issue edit")
@@ -289,7 +304,7 @@ PATH="$bin:$PATH"
 # issue <n> <title> <body-file> [state] [reason] [labels-json]
 issue() {
   jq -n --arg t "$2" --rawfile b "$3" --arg s "${4:-OPEN}" --arg r "${5:-}" --argjson l "${6:-[]}" \
-    '{title: $t, body: $b, state: $s, stateReason: $r, labels: $l, assignees: [], comments: []}' \
+    '{title: $t, body: $b, state: $s, stateReason: $r, labels: $l, assignees: [], comments: [], closedByPullRequestsReferences: [], events: []}' \
     > "$GH_DIR/issue-$1.json"
 }
 
@@ -305,10 +320,16 @@ cat > "$tmp/draft.md" <<'EOF'
 ## 受け入れ条件
 - [ ] ログインできる
 EOF
+is body "$tmp/draft.md" > "$tmp/body42"
+issue 42 "ログイン" "$tmp/body42"   # what gh issue create makes
 out=$(is create "$tmp/draft.md")
 has "number: 42" "$out" "create prints the number"
+has "id: GT-000042" "$out" "create prints the id"
+has "file: .tixforge/GT-000042/ticket.md" "$out" "create makes the working copy"
 has "--label tixforge:todo" "$(cat "$GH_DIR/calls")" "create labels tixforge:todo"
-is body "$tmp/draft.md" > "$tmp/body42"
+eq "# GT-000042: ログイン" "$(sed -n 1p .tixforge/GT-000042/ticket.md)" "working copy title line"
+is create "$tmp/draft.md" >/dev/null 2>&1; eq 6 $? "create refuses an existing ticket folder"
+rm -rf .tixforge/GT-000042
 has "<!-- tixforge:ticket:start -->" "$(cat "$tmp/body42")" "body has markers"
 has "この issue の本文は" "$(cat "$tmp/body42")" "notice in the document language"
 issue 42 "ログイン" "$tmp/body42"
@@ -374,9 +395,52 @@ sed '1s/.*/# <ticket-id>: やめた/' "$tmp/draft.md" > "$tmp/draft45"
 is body "$tmp/draft45" > "$tmp/body45"
 issue 45 "やめた" "$tmp/body45" CLOSED NOT_PLANNED
 jq '.comments = [{"body":"Canceled by tixforge: 優先度が下がった"}]' "$GH_DIR/issue-45.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-45.json"
+eq "closed_as: canceled" "$(is check 45 | sed -n 2p)" "canceled by tixforge (comment)"
 is pull 45 .tixforge/GT-000045/ticket.md >/dev/null
-has "Status: canceled" "$(cat .tixforge/GT-000045/ticket.md)" "canceled status restored"
-has "Reason: 優先度が下がった" "$(cat .tixforge/GT-000045/ticket.md)" "cancel reason restored"
+eq 0 "$(grep -c '^Status:' .tixforge/GT-000045/ticket.md)" "pull writes no Status line: the issue says it"
+issue 45 "やめた" "$tmp/body45" OPEN ""
+eq "closed_as: open" "$(is check 45 | sed -n 2p)" "reopened: open again"
+issue 45 "やめた" "$tmp/body45" CLOSED NOT_PLANNED '[{"name":"tixforge:canceled"}]'
+eq "closed_as: canceled" "$(is check 45 | sed -n 2p)" "canceled by label"
+issue 45 "やめた" "$tmp/body45" CLOSED COMPLETED '[{"name":"tixforge:in-review"}]'
+eq "closed_as: unexpected" "$(is check 45 | sed -n 2p)" "closed by hand"
+jq '.events = [{"event":"closed","commit_id":"abc123"}]' "$GH_DIR/issue-45.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-45.json"
+eq "closed_as: completed" "$(is check 45 | sed -n 2p)" "closed by a commit (Closes in a commit reaching the default branch)"
+issue 45 "やめた" "$tmp/body45" CLOSED COMPLETED '[{"name":"tixforge:merged"}]'
+eq "closed_as: completed" "$(is check 45 | sed -n 2p)" "merged label"
+issue 45 "やめた" "$tmp/body45" CLOSED COMPLETED
+jq '.closedByPullRequestsReferences = [{"number":9}]' "$GH_DIR/issue-45.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-45.json"
+eq "closed_as: completed" "$(is check 45 | sed -n 2p)" "closed by a PR"
+
+# Optimistic lock: someone else pushed after this copy was fetched.
+issue 46 "ログイン" "$tmp/body42"
+is pull 46 .tixforge/GT-000046/ticket.md >/dev/null
+cp .tixforge/GT-000046/ticket.md "$tmp/mine46"
+sed 's/ログインしたい/他の人の変更/' .tixforge/GT-000046/ticket.md > "$tmp/theirs46" && cp "$tmp/theirs46" .tixforge/GT-000046/ticket.md
+is push 46 .tixforge/GT-000046/ticket.md >/dev/null   # the other person's push (their copy is fresh)
+cp "$tmp/mine46" .tixforge/GT-000046/ticket.md
+bash "$scripts/ticket-hash.sh" stored < "$tmp/body42" > .tixforge/GT-000046/.issue-hash   # my copy came from the old version
+sed 's/ログインできる/私の変更/' "$tmp/mine46" > .tixforge/GT-000046/ticket.md
+is push 46 .tixforge/GT-000046/ticket.md >/dev/null 2>&1; eq 5 $? "push refuses: the issue changed since it was fetched"
+has "他の人の変更" "$(jq -r .body "$GH_DIR/issue-46.json")" "the other person's change is kept"
+eq "local: differs" "$(is check 46 .tixforge/GT-000046/ticket.md | sed -n 3p)" "check: the copy is not the last synced version"
+is pull 46 .tixforge/GT-000046/ticket.md >/dev/null
+eq "local: same" "$(is check 46 .tixforge/GT-000046/ticket.md | sed -n 3p)" "check: after pull the copy is the synced version"
+eq "local: missing" "$(is check 46 "$tmp/none.md" | sed -n 3p)" "check: no copy"
+
+# adopt: an issue written on GitHub (issue form), then written back keeping the original.
+printf '### 背景\n\nフォームから\n\n### 要件\n\n- 何か\n\n### 未決事項\n\n_No response_\n' > "$tmp/form"
+issue 47 "フォームの issue" "$tmp/form" OPEN "" '[{"name":"tixforge:todo"}]'
+out=$(is adopt 47 .tixforge/GT-000047/ticket.md)
+has "adopted" "$out" "adopt"
+eq "# GT-000047: フォームの issue" "$(sed -n 1p .tixforge/GT-000047/ticket.md)" "adopt: title line"
+has "## 背景" "$(cat .tixforge/GT-000047/ticket.md)" "adopt: ### becomes ##"
+has "なし" "$(cat .tixforge/GT-000047/ticket.md)" "adopt: _No response_ becomes なし"
+is adopt 42 "$tmp/x.md" 2>/dev/null; eq 2 $? "adopt refuses an issue tixforge wrote"
+out=$(is push 47 .tixforge/GT-000047/ticket.md --force --keep-original)
+has "commented: the original body" "$out" "keep-original comments first"
+has "フォームから" "$(jq -r '.comments[0].body' "$GH_DIR/issue-47.json")" "the original body is in the comment"
+eq in-sync "$(is check 47 | sed -n 1p)" "adopted issue is in sync"
 
 # --- issue-label.sh --------------------------------------------------------
 section="issue-label.sh"
@@ -393,6 +457,23 @@ il 42 reset >/dev/null
 has "--remove-label tixforge:in-review --add-label tixforge:todo --remove-assignee @me" "$(tail -1 "$GH_DIR/calls")" "reset edits"
 jq '.state = "CLOSED"' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
 il 42 review 2>/dev/null; eq 3 $? "closed issue"
+jq '.labels = [{"name":"tixforge:in-review"},{"name":"tixforge:out-of-sync"}]' "$GH_DIR/issue-42.json" > "$GH_DIR/t" && mv "$GH_DIR/t" "$GH_DIR/issue-42.json"
+il 42 done >/dev/null; eq 0 $? "done applies to a closed issue"
+has "--remove-label tixforge:in-review --add-label tixforge:done" "$(tail -1 "$GH_DIR/calls")" "done: one status label, out-of-sync kept"
+il 42 canceled >/dev/null; eq 0 $? "canceled applies to a closed issue"
+il 42 merged >/dev/null; has "--add-label tixforge:merged" "$(tail -1 "$GH_DIR/calls")" "merged"
+il 42 done --force 2>/dev/null; eq 2 $? "--force is only for start"
+printf 'tixforge:todo\nbug\n' > "$GH_DIR/labels"
+out=$(il setup)
+has "tixforge:in-progress" "$out" "setup creates the missing labels"
+case "$out" in *"tixforge:todo "*|*"tixforge:todo") ng "setup skips an existing label" ;; *) ok ;; esac
+eq "labels: all present" "$(il setup)" "setup again"
+
+# --- github-preflight.sh ---------------------------------------------------
+section="github-preflight.sh"
+eq "ok: o/r" "$(bash "$scripts/github-preflight.sh")" "ok"
+GH_NO_AUTH=1 bash "$scripts/github-preflight.sh" >/dev/null; eq 4 $? "not logged in"
+PATH=/usr/bin:/bin bash "$scripts/github-preflight.sh" >/dev/null; eq 3 $? "no gh"
 
 # --- pr-status.sh ----------------------------------------------------------
 section="pr-status.sh"
