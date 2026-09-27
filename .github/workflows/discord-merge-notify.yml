@@ -38,4 +38,5 @@ jobs:
         if: steps.payload.outputs.send == 'true'
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: curl -sS --fail-with-body -H "Content-Type: application/json" -d @"$RUNNER_TEMP/payload.json" "$WEBHOOK"
+        run: |
+          curl -sS --fail-with-body -H "Content-Type: application/json" -d @"$RUNNER_TEMP/payload.json" "$WEBHOOK"
