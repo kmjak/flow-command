@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the verification commands of docs/flow.config.yml (`commands`), in
+# Run the verification commands of .tixforge/config.yml (`commands`), in
 # the order written, from the repository root, and print one line that
 # tixforge records as is in the Implementation Log:
 #
@@ -20,14 +20,14 @@ top=$(flow_top)
 conf=$(flow_config "$top")
 
 if ! cfg_has commands "$conf"; then
-  echo "docs/flow.config.yml に commands がありません（/tixforge:project init の再実行で追加できます）" >&2
+  echo ".tixforge/config.yml に commands がありません（/tixforge:project init の再実行で追加できます）" >&2
   exit 3
 fi
 
 hash=$(git -C "$top" rev-parse --short HEAD 2>/dev/null || echo none)
 [ -n "$(git -C "$top" status --porcelain 2>/dev/null)" ] && hash="${hash}+dirty"
 
-logdir="$(git -C "$top" rev-parse --absolute-git-dir 2>/dev/null || echo "$top")/flow/verify"
+logdir="$(git -C "$top" rev-parse --absolute-git-dir 2>/dev/null || echo "$top")/tixforge/verify"
 mkdir -p "$logdir"
 
 tab=$(printf '\t')

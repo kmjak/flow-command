@@ -1,15 +1,15 @@
-# flow-command template: flow-issue-guard (v1). Installed by /tixforge:project init
-# together with .github/flow/ticket-hash.sh (a copy of the skill's script,
+# tixforge template: tixforge-issue-guard (v1). Installed by /tixforge:project init
+# together with .github/tixforge/ticket-hash.sh (a copy of the skill's script,
 # so the hash is computed exactly as tixforge computes it).
 #
 # Runs on the GitHub event `issues: edited`: someone changed an issue's
 # title or body. tixforge writes a hash of the title + ticket into the body
-# (<!-- flow:hash:... -->) whenever it syncs. When the hash no longer
+# (<!-- tixforge:hash:... -->) whenever it syncs. When the hash no longer
 # matches, the issue was edited on GitHub instead of through /tixforge:ticket edit:
-# the issue gets the label flow:out-of-sync and one comment. /tixforge:dev and
+# the issue gets the label tixforge:out-of-sync and one comment. /tixforge:dev and
 # /tixforge:ticket edit see the label, show the difference and ask whether to adopt it.
 # When tixforge syncs again the hash matches and the label is removed.
-name: flow-issue-guard
+name: tixforge-issue-guard
 
 on:
   issues:
@@ -21,12 +21,12 @@ permissions:
 
 jobs:
   guard:
-    if: contains(github.event.issue.body, 'flow:ticket:start') || contains(join(github.event.issue.labels.*.name, ','), 'flow:')
+    if: contains(github.event.issue.body, 'tixforge:ticket:start') || contains(join(github.event.issue.labels.*.name, ','), 'tixforge:')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: .github/flow/ticket-hash.sh
+          sparse-checkout: .github/tixforge/ticket-hash.sh
           sparse-checkout-cone-mode: false
       - name: Compare the hash
         env:
@@ -37,7 +37,7 @@ jobs:
           BODY: ${{ github.event.issue.body }}
           LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
         run: |
-          h=.github/flow/ticket-hash.sh
+          h=.github/tixforge/ticket-hash.sh
           printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
           if bash "$h" extract < "$RUNNER_TEMP/body.md" > "$RUNNER_TEMP/ticket.md"; then
             if stored=$(bash "$h" stored < "$RUNNER_TEMP/body.md"); then
@@ -49,11 +49,11 @@ jobs:
           else
             ok=0     # the markers are gone
           fi
-          case ",$LABELS," in *,flow:out-of-sync,*) labeled=1 ;; *) labeled=0 ;; esac
+          case ",$LABELS," in *,tixforge:out-of-sync,*) labeled=1 ;; *) labeled=0 ;; esac
           if [ $ok -eq 1 ]; then
-            [ $labeled -eq 1 ] && gh issue edit "$NUMBER" --remove-label flow:out-of-sync
+            [ $labeled -eq 1 ] && gh issue edit "$NUMBER" --remove-label tixforge:out-of-sync
             exit 0
           fi
           [ $labeled -eq 1 ] && exit 0   # already reported
-          gh issue edit "$NUMBER" --add-label flow:out-of-sync
-          gh issue comment "$NUMBER" --body "このチケットの本文またはタイトルが GitHub 上で直接編集されました（flow:out-of-sync）。次に /tixforge:dev か /tixforge:ticket edit を実行したときに差分を確認し、取り込むかを選べます。今後の変更は /tixforge:ticket edit で行ってください。 / This ticket was edited on GitHub. /tixforge:dev or /tixforge:ticket edit will show the difference and ask whether to adopt it; please use /tixforge:ticket edit for changes."
+          gh issue edit "$NUMBER" --add-label tixforge:out-of-sync
+          gh issue comment "$NUMBER" --body "このチケットの本文またはタイトルが GitHub 上で直接編集されました（tixforge:out-of-sync）。次に /tixforge:dev か /tixforge:ticket edit を実行したときに差分を確認し、取り込むかを選べます。今後の変更は /tixforge:ticket edit で行ってください。 / This ticket was edited on GitHub. /tixforge:dev or /tixforge:ticket edit will show the difference and ask whether to adopt it; please use /tixforge:ticket edit for changes."

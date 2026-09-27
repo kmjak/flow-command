@@ -1,0 +1,9 @@
+# Fixed messages written by the tixforge scripts and GitHub Actions, per
+# document language (.tixforge/config.yml `language`). A language that is
+# not listed falls back to en. One message per line; keep them on one line.
+ja:
+  issue_notice: "> [!NOTE]\n> この issue の本文は tixforge がチケットと同期しています。本文やタイトルを変えるときは直接編集せず、`/tixforge:ticket edit` を使ってください。議論はコメントでどうぞ。"
+  out_of_sync_comment: "このチケットの本文またはタイトルが GitHub 上で直接編集されました（tixforge:out-of-sync）。次に /tixforge:dev か /tixforge:ticket edit を実行したときに差分を確認し、取り込むかを選べます。今後の変更は /tixforge:ticket edit で行ってください。"
+en:
+  issue_notice: "> [!NOTE]\n> This issue body is synced with a ticket by tixforge. Do not edit the body or title here; use `/tixforge:ticket edit`. Discussion is welcome in the comments."
+  out_of_sync_comment: "This ticket was edited on GitHub (tixforge:out-of-sync). /tixforge:dev or /tixforge:ticket edit will show the difference and ask whether to adopt it; please use /tixforge:ticket edit for changes."

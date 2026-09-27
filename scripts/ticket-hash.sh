@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # The ticket part of a tixforge issue body, and its hash. Shared by
-# issue-sync.sh and the flow-issue-guard GitHub Actions workflow (which
-# gets a copy at .github/flow/ticket-hash.sh), so both compute the same
+# issue-sync.sh and the tixforge-issue-guard GitHub Actions workflow (which
+# gets a copy at .github/tixforge/ticket-hash.sh), so both compute the same
 # hash. Keep it dependency-free: bash, sed, awk, sha256sum or shasum.
 #
 #   ticket-hash.sh extract < issue-body     the ticket between the markers
 #   ticket-hash.sh stored < issue-body      the hash recorded in the body
 #   ticket-hash.sh hash <title> < ticket    hash of title + ticket
 #
-# Body layout written by /flow:
+# Body layout written by tixforge:
 #   <notice>
-#   <!-- flow:hash:<12 hex> -->
-#   <!-- flow:ticket:start -->
+#   <!-- tixforge:hash:<12 hex> -->
+#   <!-- tixforge:ticket:start -->
 #   <ticket from its first ## heading to the end>
-#   <!-- flow:ticket:end -->
+#   <!-- tixforge:ticket:end -->
 #
 # Normalization before hashing: CR removed, trailing whitespace and blank
 # lines at the end removed. Nothing else (inner spacing is content).
@@ -23,8 +23,8 @@ set -uo pipefail
 
 usage() { grep '^#   [a-z]' "$0" | sed 's/^#   //' >&2; exit 2; }
 
-START='<!-- flow:ticket:start -->'
-END='<!-- flow:ticket:end -->'
+START='<!-- tixforge:ticket:start -->'
+END='<!-- tixforge:ticket:end -->'
 
 normalize() {
   local s
@@ -51,7 +51,7 @@ case ${1:-} in
       END { exit !(seen && closed) ? 3 : 0 }'
     ;;
   stored)
-    h=$(tr -d '\r' | sed -n 's/^<!-- flow:hash:\([0-9a-f]*\) -->$/\1/p' | head -1)
+    h=$(tr -d '\r' | sed -n 's/^<!-- tixforge:hash:\([0-9a-f]*\) -->$/\1/p' | head -1)
     [ -n "$h" ] || exit 3
     printf '%s\n' "$h"
     ;;

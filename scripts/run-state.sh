@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
-# The tixforge run state file, docs/flow/<id>/main.md: creates it and reads or
-# writes its header table. Sections are written by Claude with Edit; this
-# script owns the header so Status and Updated never drift apart.
+# The tixforge run state file, .tixforge/<id>/state.md: creates it and reads
+# or writes its header table. Sections are written by Claude with Edit; this
+# script owns the header so Status and Updated never drift apart. The ticket
+# is .tixforge/<id>/ticket.md and a GT id carries its issue number, so the
+# header does not repeat them.
 #
-#   run-state.sh init <id>                   create main.md (Status research:in-progress)
+#   run-state.sh init <id>                   create state.md (Status research:in-progress)
 #   run-state.sh get <id> [field]            print a header field (default Status)
-#   run-state.sh set <id> <field> <value>    set Status / Branch / Base / Issue; also sets Updated
+#   run-state.sh set <id> <field> <value>    set Status / Branch / Base; also sets Updated
 #   run-state.sh list                        "<id>\t<Status>\t<Branch>" for every run
-#
-# Setting Status also maintains docs/flow/.active, which names the run that
-# is before Implement (research / approach / plan). The guard hook reads it
-# to ask before files outside docs/ are edited ahead of the Plan approval.
 #
 # Exit: 0 ok, 1 no such run, 2 usage or invalid value, 3 run already exists.
 set -uo pipefail
@@ -19,7 +17,7 @@ set -uo pipefail
 usage() { grep '^#   [a-z]' "$0" | sed 's/^#   //' >&2; exit 2; }
 
 top=$(flow_top)
-state_file() { printf '%s/docs/flow/%s/main.md\n' "$top" "$1"; }
+sfile() { state_file "$1" "$top"; }
 
 valid_status() {
   case "$1" in
@@ -46,30 +44,21 @@ put() {
   cat "$tmp" > "$1"; rm -f "$tmp"
 }
 
-track_active() { # track_active <id> <status>
-  local active="$top/docs/flow/.active"
-  case "$2" in
-    research:*|approach:*|plan:*) printf '%s\n' "$1" > "$active" ;;
-    *) [ -f "$active" ] && [ "$(cat "$active")" = "$1" ] && rm -f "$active" ;;
-  esac
-  return 0
-}
-
 cmd=${1:-}; [ $# -gt 0 ] && shift
 case $cmd in
   init)
     [ $# -eq 1 ] || usage
-    f=$(state_file "$1")
+    is_ticket_id "$1" || { echo "not a ticket id: $1" >&2; exit 2; }
+    f=$(sfile "$1")
     [ -e "$f" ] && { echo "run already exists: ${f#$top/}" >&2; exit 3; }
-    ticket="docs/tickets/$1.md"
-    issue=$(grep -Eo -m1 '^Issue:[[:space:]]*#[0-9]+' "$top/$ticket" 2>/dev/null | sed 's/^Issue:[[:space:]]*//')
+    ensure_workspace "$top"
     mkdir -p "$(dirname "$f")"
     {
-      printf '# Flow: %s\n\n' "$1"
+      printf '# Run: %s\n\n' "$1"
       printf '| %-7s | %-34s |\n' Field Value
       printf '|---------|------------------------------------|\n'
-      printf '| %-7s | %-34s |\n' Status research:in-progress Ticket "$ticket" \
-        Issue "${issue:-—}" Branch — Base — Updated "$(flow_now)"
+      printf '| %-7s | %-34s |\n' Status research:in-progress \
+        Branch — Base — Updated "$(flow_now)"
       cat <<'EOF'
 
 ## Research
@@ -91,31 +80,29 @@ case $cmd in
 <!-- Phase 6: title, target branch, URL, review outcome -->
 EOF
     } > "$f"
-    track_active "$1" research:in-progress
     printf '%s\n' "${f#$top/}"
     ;;
   get)
     [ $# -ge 1 ] && [ $# -le 2 ] || usage
-    f=$(state_file "$1"); [ -f "$f" ] || { echo "no run: $1" >&2; exit 1; }
+    f=$(sfile "$1"); [ -f "$f" ] || { echo "no run: $1" >&2; exit 1; }
     field "$f" "${2:-Status}"
     ;;
   set)
     [ $# -eq 3 ] || usage
-    f=$(state_file "$1"); [ -f "$f" ] || { echo "no run: $1" >&2; exit 1; }
+    f=$(sfile "$1"); [ -f "$f" ] || { echo "no run: $1" >&2; exit 1; }
     case $2 in
       Status) valid_status "$3" || { echo "invalid Status: $3" >&2; exit 2; } ;;
-      Branch|Base|Issue) ;;
-      *) echo "field not settable: $2 (Status, Branch, Base, Issue)" >&2; exit 2 ;;
+      Branch|Base) ;;
+      *) echo "field not settable: $2 (Status, Branch, Base)" >&2; exit 2 ;;
     esac
     put "$f" "$2" "$3"
     put "$f" Updated "$(flow_now)"
-    [ "$2" = Status ] && track_active "$1" "$3"
     field "$f" "$2"
     ;;
   list)
-    for f in "$top"/docs/flow/*/main.md; do
+    for f in "$(tf_dir "$top")"/*/state.md; do
       [ -f "$f" ] || continue
-      id=${f%/main.md}; id=${id##*/}
+      id=${f%/state.md}; id=${id##*/}
       printf '%s\t%s\t%s\n' "$id" "$(field "$f" Status)" "$(field "$f" Branch)"
     done
     ;;

@@ -16,19 +16,32 @@ cwd=$(printf '%s' "$input" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\
 top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 branch=$(git symbolic-ref --short -q HEAD 2>/dev/null || true)
 
-run=""
-for f in "$top"/docs/flow/*/main.md; do
+run=""; early=""
+for f in "$(tf_dir "$top")"/*/state.md; do
   [ -f "$f" ] || continue
-  is_open_status "$(field "$f" Status)" || continue
+  st=$(field "$f" Status)
+  is_open_status "$st" || continue
   if [ -n "$branch" ] && [ "$(field "$f" Branch)" = "$branch" ]; then run=$f; break; fi
+  case "$st" in research:*|approach:*|plan:*) early="${early}${early:+
+}$f" ;; esac
 done
-if [ -z "$run" ] && [ -f "$top/docs/flow/.active" ]; then
-  f="$top/docs/flow/$(cat "$top/docs/flow/.active")/main.md"
-  [ -f "$f" ] && is_open_status "$(field "$f" Status)" && run=$f
+# Not on a run's branch: a run before Implement has no branch yet. Remind
+# of it when it is the only one; with several, the user says which.
+if [ -z "$run" ] && [ -n "$early" ]; then
+  [ "$(printf '%s\n' "$early" | wc -l)" -eq 1 ] && run=$early
+fi
+if [ -z "$run" ] && [ -n "$early" ]; then
+  ids=$(printf '%s\n' "$early" | while IFS= read -r f; do d=${f%/state.md}; printf '%s ' "${d##*/}"; done)
+  cat <<EOF
+[tixforge] この作業ディレクトリには Plan の承認前の run が複数あります（${ids% }）。会話が要約・再開されたため、どの run を進めていたかをユーザーに確認し、その run の状態ファイル（.tixforge/<id>/state.md）と次を Read し直してください:
+- ${here%/scripts}/skills/dev/run.md
+- ${here%/scripts}/references/common.md
+EOF
+  exit 0
 fi
 [ -n "$run" ] || exit 0
 
-id=${run%/main.md}; id=${id##*/}
+id=${run%/state.md}; id=${id##*/}
 cat <<EOF
 [tixforge] この作業ディレクトリでは /tixforge:dev の run ${id} が進行中です（Status: $(field "$run" Status)、Branch: $(field "$run" Branch)）。
 会話が要約・再開されたため、手順書の細部が失われている可能性があります。tixforge の作業を続ける前に、次を Read し直してください:

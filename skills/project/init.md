@@ -4,11 +4,11 @@
 
 各手順は太字の名前で参照する（例：「チケット管理」）。
 
-1. **現状の確認**：`docs/context/`・`docs/tickets/`・`docs/flow/` の有無と中身、git リポジトリかどうか、`docs/flow/` が無視されているか（`git check-ignore -q docs/flow/x`）。
-   `docs/flow.config.yml` が既にある場合（再実行や、古い init で作った場合）は読み込み、**値があるキーは尋ねずにそのまま使う**。以降の手順は、値が無いキーについてだけ行い、既存のキーは書き換えない。
+1. **現状の確認**：`docs/context/`・`.tixforge/` の有無と中身、git リポジトリかどうか、`.tixforge/.gitignore` があるか。
+   `.tixforge/config.yml` が既にある場合（再実行や、古い init で作った場合）は読み込み、**値があるキーは尋ねずにそのまま使う**。以降の手順は、値が無いキーについてだけ行い、既存のキーは書き換えない。
 2. **リポジトリ**（`repository`）：flow はブランチと commit を前提にし、PR は GitHub に出す。ここで決めた `host` によって、「チケット管理」と dev の PR フェーズの動きが変わる。
    - **git リポジトリでない**：`git init` するか尋ねる（既定ブランチ名は下の「デフォルトブランチ」と同じく尋ねる）。しないなら、flow は使えないことを伝えて init を中止する。
-   - **`origin` が GitHub を指している**（`git remote get-url origin` が `github.com`）：`host: github`。`default_branch` は尋ねずに GitHub から読む（`gh repo view --json defaultBranchRef`。`gh` が使えなければ `git symbolic-ref --short refs/remotes/origin/HEAD` の `origin/` を除いたもの。どちらも取れなければ尋ねる）。
+   - **`origin` が GitHub を指している**（`git remote get-url origin` が `github.com`）：`host: github`。`base_branch` は尋ねずに GitHub から読む（`gh repo view --json defaultBranchRef`。`gh` が使えなければ `git symbolic-ref --short refs/remotes/origin/HEAD` の `origin/` を除いたもの。どちらも取れなければ尋ねる）。
    - **GitHub 以外の remote がある**（GitLab など）：v1 の PR 作成は GitHub だけに対応していることを伝え、`host: none`（PR を出さず、ローカルでマージする）で使うか、中止するかを尋ねる。
    - **remote が無い**：AskUserQuestion で「このサービスに GitHub リポジトリは必要か」を尋ねる。
      - **AI と対話して作る** — 下記「リポジトリを作る場合」。
@@ -24,12 +24,12 @@
    - **LICENSE**（public のときだけ。既に LICENSE ファイルがあれば尋ねない）— MIT・Apache-2.0・GPL-3.0・付けない、から選ぶ（その他は自由入力）。「付けない」には、他の人は法的に使えない（全著作権を保持する）ことを添える。著作権者は `git config user.name`、年は今年を既定にして確認する。本文は記憶から書かず、`gh api licenses/<キー>`（例：`mit`）の `body` を使い、年と著作権者の欄を埋める。
    - **push するか** — 既定は「する」。public のときは、先に `.env`・鍵ファイルなどの秘密情報が git で追跡されていないか確かめ、あれば示して止まる。
 
-   `docs/flow.config.yml` には次の 2 つだけを書く。オーナー・リポジトリ名・公開範囲は書かない（remote と GitHub から分かり、書くと食い違うため）：
+   `.tixforge/config.yml` には次の 2 つだけを書く。オーナー・リポジトリ名・公開範囲は書かない（remote と GitHub から分かり、書くと食い違うため）：
 
    ```yaml
    repository:
      host: github          # github | none（none = ローカルのみ。init の再実行で聞き直さないために書く）
-     default_branch: main  # dev の Plan で Base の既定値。host: none では PR フェーズのマージ先
+     base_branch: main  # dev の Plan で Base の既定値。host: none では PR フェーズのマージ先
    ```
 3. **ドキュメント言語**（`language`）：AskUserQuestion で「日本語（推奨・既定）」「English」を選択肢にして尋ねる（その他はユーザーが自由入力できる）。以降のチケットと `docs/context/**` はこの言語で書く。
 4. **検証コマンド**（`commands`）：dev の Implement・Review で Claude が実行する、テスト・lint・型チェックなどのコマンド。
@@ -56,15 +56,12 @@
         Source があれば、ここには flow 固有の補足だけを書く（Source と矛盾したら Source を優先する）。 -->
    ```
 6. **チケット管理**（`ticket`）：`repository.host` が `none` なら尋ねずに `tracker: local` にする。`github` なら AskUserQuestion で次から選んでもらう。チームで使うなら GitHub を勧める（id が衝突せず、他の人が状況と担当者を見られるため）。
-   - **GitHub issue と連携する**（`tracker: github`）— create で issue を作り、issue 番号を id にする。issue が正本で、チケットの全文・ステータス（ラベル）・担当者を載せる。手元の `docs/tickets/` は issue から作る作業用のコピーで、git で管理しない（`.gitignore` に入れる）。public リポジトリでは背景や未決事項も公開されることを伝える（`references/github.md`）。
-   - **ローカルのみ**（`tracker: local`）— id はローカルの連番。チケットは git で管理し、実装 PR の最初の commit に入る。それまでは作成者の手元にしか無く、他の人と共有できないことを伝える。
+   - **GitHub issue と連携する**（`tracker: github`）— create で issue を作り、issue 番号を id にする。issue が正本で、チケットの全文・ステータス（ラベル）・担当者を載せる。手元の `.tixforge/<id>/ticket.md` は issue から作る作業用のコピーで、git で管理しない。id は `GT-<issue 番号>`。public リポジトリでは背景や未決事項も公開されることを伝える（`references/github.md`）。
+   - **ローカルのみ**（`tracker: local`）— id はローカルの連番（`LT-`）。チケットは `.tixforge/<id>/ticket.md` に置き、git で管理しない。作成者の手元にしか無く、他の人と共有できない（1 人・1 台で使う前提）ことを伝える。GitHub に PR を出す場合、受け入れ条件は PR 本文に転記される。
 
-   `prefix` と `pad` は既定値（`T`・`6`）を書き、変えたければ config を直せばよいことを伝える（既存のチケットがある状態で変えると id の形式が混ざる点も伝える）。
    `github` の場合は（`ticket` が既に設定済みでも、再実行のたびに）`references/github.md` を Read して次を行う：
    - **事前チェック**（`gh` があること・`gh auth status`・`gh repo view`）。`gh` が無ければインストールを、未認証なら `! gh auth login` の実行を案内し、ユーザーが済ませるのを待ってから確認し直す。どうしても済ませられなければ `local` にするか尋ねる。
-   - **ラベルを作る**：`gh label list` で既存のものを確かめ、無いものだけ（`flow:todo`・`flow:in-progress`・`flow:in-review`・`flow:out-of-sync`）を、意味（`references/github.md`「ラベルと担当者」）と一緒に一覧で示して確認を得てから `gh label create` で作る。
-   - **チケットを git の管理から外す**：`docs/tickets/` が `.gitignore` に無ければ、追加を「作るもの」に入れる。既に追跡されているチケット（`git ls-files docs/tickets`）があれば、追跡から外す commit（`git rm --cached docs/tickets/*.md`。手元のファイルは残る）を提案する（旧方式からの移行。`references/github.md`「旧形式からの移行」）。`docs/tickets/.gitkeep` は作らない。
-   - 既存のチケットで `Issue:` 行の無いもの（`local` の時代に作ったもの）は issue を作らずそのまま使えることを伝える（issue 化したい場合の自動移行はしない）。
+   - **ラベルを作る**：`gh label list` で既存のものを確かめ、無いものだけ（`tixforge:todo`・`tixforge:in-progress`・`tixforge:in-review`・`tixforge:out-of-sync`）を、意味（`references/github.md`「ラベルと担当者」）と一緒に一覧で示して確認を得てから `gh label create` で作る。
 7. **レビューの要否**（`review.required`）：AskUserQuestion で「1 人で開発しますか？」と尋ねる（`host: none` なら PR が無いので尋ねずに書かない）。
    - **1 人** — 既定を `required: false` にする。GitHub では自分の PR を Approve できないため、`true` のままだと PR が完了にならないことを伝える。CI 成功・コンフリクトなしで dev は完了にし、マージはユーザーが行う。
    - **複数人** — 既定を `required: true` にする（Approve 済み・CI 成功・コンフリクトなしで完了）。
@@ -73,10 +70,9 @@
 9. **作るもの**：一覧で提示してから作る（既にあるものは作らない・上書きしない）：
    - `docs/context/`（中身は「context」。`commit.md` は「commit 規約」）
    - `docs/context/commit.md`（「commit 規約」で決めた内容）
-   - `docs/tickets/.gitkeep`（`local` のときだけ）
    - `LICENSE`（「リポジトリ」で選んだ場合）
-   - `docs/flow.config.yml` — 「リポジトリ」「ドキュメント言語」「検証コマンド」「チケット管理」「レビューの要否」「ゲート」で決めた値を書く（既にあれば、足りないキーだけを追記する）。
-   - `.gitignore` に `docs/flow/` を追加（`github` なら `docs/tickets/` も。既に無視されていれば何もしない。`.gitignore` が無ければ作る）。`docs/flow/` 自体は dev が必要になったときに作るので、ここでは作らない。
+   - `.tixforge/config.yml` — 「リポジトリ」「ドキュメント言語」「検証コマンド」「チケット管理」「レビューの要否」「ゲート」で決めた値を書く（既にあれば、足りないキーだけを追記する）。
+   - `.tixforge/.gitignore`（内容は `*`・`!.gitignore`・`!config.yml` の 3 行。`.tixforge/` の中で git 管理するのは設定だけにする。プロジェクトの `.gitignore` は触らない）
 10. **context**：`docs/context/` に（`commit.md` 以外の）ファイルが既にある場合は、作り方を尋ねずに既存の内容を読み、足りない点を提案するにとどめる（上書きしない）。無い場合は、AskUserQuestion で作り方を選んでもらう：
     - **対話で作る** — 下記「対話で作る場合」の手順で、各項目の内容をユーザーと一緒に決めて `docs/context/overview.md` を書く。
     - **自分で作る** — 下記テンプレートの見出しと記入ガイドだけを入れた `docs/context/overview.md` を作り、中身はユーザーが書く。こちらからは内容を埋めない。
@@ -131,13 +127,13 @@
     - **入れる・ある** — 既存の内容は一切変えず、既存のテンプレートに**無い見出しだけ**を末尾に追記する。追記する差分を示し、確認を得てから書く（上書きはしない）。
     - **入れない** — 何もしない。
 13. **GitHub Actions**（`tracker: github` のときだけ。`references/github.md`「GitHub Actions」）：ローカルで tixforge を実行しなくても issue の状態がずれないように、サーバー側の workflow を入れるか尋ねる。AskUserQuestion（複数選択）で、既に `.github/workflows/` にあるものを除いて尋ねる：
-    - **`flow-issue-sync`（推奨）** — PR が開いたら issue を `flow:in-review` に、マージされたら閉じる。
-    - **`flow-pr-link`（推奨）** — `<id>-` ブランチの PR に `Closes #<番号>` があるかを検査する。必須チェックにする場合は、ユーザーがブランチ保護で設定する（flow は設定しない）ことを伝える。
-    - **`flow-issue-guard`（推奨）** — issue が GitHub 上で直接編集されたら `flow:out-of-sync` を付ける。`<scripts>/ticket-hash.sh` を `.github/flow/ticket-hash.sh` にもコピーする。
+    - **`tixforge-issue-sync`（推奨）** — PR が開いたら issue を `tixforge:in-review` に、マージされたら閉じる。
+    - **`tixforge-pr-link`（推奨）** — `<id>-` ブランチの PR に `Closes #<番号>` があるかを検査する。必須チェックにする場合は、ユーザーがブランチ保護で設定する（flow は設定しない）ことを伝える。
+    - **`tixforge-issue-guard`（推奨）** — issue が GitHub 上で直接編集されたら `tixforge:out-of-sync` を付ける。`<scripts>/ticket-hash.sh` を `.github/tixforge/ticket-hash.sh` にもコピーする。
     - 選ばれたものを `<plugin>/templates/github/` から `.github/workflows/` にそのままコピーする（内容は変えない）。作るファイルを一覧で示し、確認を得てから作る。flow を更新しても、コピーした workflow は自動では更新されないことを伝える。
 14. **CI**（`host: github` で `commands` が `{}` でないときだけ）：`.github/workflows/` に、検証コマンドを実行している workflow が無ければ、作るか尋ねる。CI と dev の検証を同じ内容に揃えるため。
-    - 作るなら `<plugin>/templates/github/flow-ci.yml` を下敷きにして、ユーザーと一緒に埋める：`__DEFAULT_BRANCH__` は `repository.default_branch`、`__COMMANDS__` は `commands` を書いた順に 1 ステップずつ、`__SETUP__`（言語のセットアップ・依存のインストール）はプロジェクトのファイル（`package.json` のロックファイル・`.nvmrc`・`pyproject.toml`・`go.mod` など）から候補を作って確認する。**確認していないセットアップ手順を推測で書かない。**
-    - 全文を示し、確認を得てから `.github/workflows/flow-ci.yml` に書く。
+    - 作るなら `<plugin>/templates/github/tixforge-ci.yml` を下敷きにして、ユーザーと一緒に埋める：`__DEFAULT_BRANCH__` は `repository.base_branch`、`__COMMANDS__` は `commands` を書いた順に 1 ステップずつ、`__SETUP__`（言語のセットアップ・依存のインストール）はプロジェクトのファイル（`package.json` のロックファイル・`.nvmrc`・`pyproject.toml`・`go.mod` など）から候補を作って確認する。**確認していないセットアップ手順を推測で書かない。**
+    - 全文を示し、確認を得てから `.github/workflows/tixforge-ci.yml` に書く。
 15. **古い導入の片付け**：reviewer agent と hook は tixforge plugin に同梱されている（plugin を有効にするだけで効く）。plugin にする前の方式（symlink とユーザー設定への hook の登録）が残っていると、同じスキルが 2 つになったり、hook が 2 回動いて確認画面が 2 度出たりする。次を確かめ、残っていれば片付けを提案する：
     - `~/.claude/skills/flow`（symlink か、コピー）と、プロジェクトの `.claude/skills/flow` — あれば削除を提案する（`/flow` が plugin ではなく古いスキルに届くため）。
     - `~/.claude/agents/flow-reviewer.md`・`~/.claude/agents/flow-quality-reviewer.md`（とプロジェクトの `.claude/agents/` の同名ファイル）— あれば削除を提案する。
@@ -145,8 +141,8 @@
     - 削除・変更するものは一覧で示し、確認を得てから行う。反映は次に起動するセッションから。
 16. **jq**：`command -v jq` で jq があるか確かめる。無ければインストール（例：`brew install jq`）を案内する。guard hook は jq が無いと、flow のブランチで push・PR 作成かどうかを詳しく判定できず（push らしいコマンドのたびに確認画面が出る）、許可リスト・MCP・編集の判定を行わない。GitHub 連携のスクリプト（`issue-sync.sh` など）は gh に同梱の jq 機能を使うので、jq が無くても動く。
 17. **まとめ**：作ったものを要約する。対話で作った場合は未決事項を示す。自分で作る場合は、`docs/context/overview.md` を埋めてから `/tixforge:ticket create` に進むよう促す。
-18. **commit**：context が完成したら、init で作ったもの・変えたもの（`.gitignore`・`docs/flow.config.yml`・`docs/tickets/.gitkeep`・`docs/context/**`・`LICENSE`・`CLAUDE.md`・PR テンプレート・`.github/workflows/flow-*.yml`・`.github/flow/ticket-hash.sh`・「チケット管理」で追跡から外したチケット）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する。
-    - 「リポジトリ」でリポジトリを作り「push する」を選んだ場合だけ、commit の後に `git push -u origin <default_branch>` を行う（実行前にコマンドを示して確認を得る）。それ以外では push しない。
+18. **commit**：context が完成したら、init で作ったもの・変えたもの（`.tixforge/.gitignore`・`.tixforge/config.yml`・`docs/context/**`・`LICENSE`・`CLAUDE.md`・PR テンプレート・`.github/workflows/tixforge-*.yml`・`.github/tixforge/ticket-hash.sh`）をまとめて commit する。対象ファイルと commit メッセージ（`docs/context/commit.md` の規約に従う）を提示し、確認を得てから commit する。
+    - 「リポジトリ」でリポジトリを作り「push する」を選んだ場合だけ、commit の後に `git push -u origin <base_branch>` を行う（実行前にコマンドを示して確認を得る）。それ以外では push しない。
     - 自分で作る場合は、ユーザーが `overview.md` を書き終えてから commit するか、雛形のまま今 commit するかを尋ねる。
     - init が作ったもの以外の変更は commit に含めない。
 19. 次の一手として `/tixforge:ticket create` を案内する。

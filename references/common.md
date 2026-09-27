@@ -8,37 +8,41 @@
 - `<scripts>` — `<plugin>/scripts`。スクリプトは `bash <scripts>/<名前>.sh …` で実行する
 - `references/<名前>.md` — `<plugin>/references/<名前>.md`
 
-**会話が要約された後**（要約から再開したとき）は、続ける前に、今の手順ファイルと（dev なら）`docs/flow/<ticket-id>/main.md` を Read し直す。要約には手順の細部が残らないため。SessionStart hook（plugin に同梱）が、そのことを自動で伝える。
+**会話が要約された後**（要約から再開したとき）は、続ける前に、今の手順ファイルと（dev なら）`.tixforge/<ticket-id>/state.md` を Read し直す。要約には手順の細部が残らないため。SessionStart hook（plugin に同梱）が、そのことを自動で伝える。
 
 ## 共通規約
 
-チケット id を全ての基点にする：チケットファイル名・状態フォルダ名・ブランチ接頭辞。
+チケット id を全ての基点にする：チケットと状態のフォルダ名・ブランチ接頭辞。
 
-**チケット id の形式：** `<prefix><番号>`。番号は `pad` 桁になるよう 0 埋めする（既定は `T` と 6 桁：`T000123`）。0 埋めは、ファイル一覧やブランチ一覧で `T2` より `T11` が先に並ばないようにするため。番号が `pad` 桁を超えたら 0 埋めせずにそのまま使う。
+**チケット id の形式：** ローカルのチケットは `LT-<番号>`、GitHub issue のチケットは `GT-<番号>`。番号は 6 桁に 0 埋めする（`LT-000007`・`GT-000123`）。`GT-000123` は issue #123。番号が 6 桁を超えたら 0 埋めせずにそのまま使う。
 
-**id は必ず `<scripts>/ticket-id.sh` で扱う**（手で 0 埋め・変換しない。シェルの算術に 0 埋めの数字を渡すと 8 進数になる）：
+- **チケットの扱いは id の接頭辞で決まる**：`LT-` は手元のファイルが正本、`GT-` は issue が正本（`references/github.md`）。`.tixforge/config.yml` の `ticket.tracker` が決めるのは、create が次にどちらを作るかだけ。tracker を切り替えても、既存の `LT-` のチケットはそのまま `LT-` として完了まで進められる。
+- `LT-` の番号は `ticket-id.sh next`（`.tixforge/` と手元のブランチ名の最大の番号 + 1）。ローカルのチケットは 1 人・1 台で使う前提。`GT-` の番号は issue 番号（create で issue を作成して得る。複数人で作っても衝突しない）。
+
+**id は必ず `<scripts>/ticket-id.sh` で扱う**（手で 0 埋め・変換・解釈しない。シェルの算術に 0 埋めの数字を渡すと 8 進数になる）。出力はそのまま使う：
 
 | 用途 | コマンド |
 |------|----------|
-| 指定された id の正規化（`T000123`・`123`・`#123` のどれでも） | `ticket-id.sh normalize <引数>`（終了コード 1：その id のチケットが無い旧形式、2：使えない文字を含む → 書き換えずに止まって尋ねる） |
-| id → issue 番号 | `ticket-id.sh number <id>` |
-| 次の id（`local` のとき） | `ticket-id.sh next` |
+| 引数からチケット id を取り出す | `ticket-id.sh detect "<引数>"` → `id: <id>`（無ければ `id: none`、形が不正なら `invalid: <語>`）と `rest: <id を除いた残り>`。明示的な形（`LT-…`・`GT-…`・`#123`）は文中でも拾い、裸の数字は引数全体が数字のときだけ拾う |
+| 指定された id の正規化 | `ticket-id.sh normalize <引数>`（`LT-000123`・`GT-000123`（大文字小文字は問わない）・`#123`（issue 番号）・`123`（`ticket.tracker` に従う）。桁数が違う id は 0 埋めせずにエラー（終了コード 2）→ 正しい形を示して尋ねる） |
+| そのチケットが実在するか | `ticket-id.sh exists <id>` → `ticket`（`LT-`）・`issue`・`pull-request`（その番号は PR）・`none` |
+| id → issue 番号 | `ticket-id.sh number <GT-id>` |
+| 次の id（`LT-`） | `ticket-id.sh next` |
 
-- 番号の決め方は `ticket.tracker` で変わる：
-  - `github` — **issue 番号をそのまま使う**（create で issue を作成して得る）。サーバーが払い出すので、複数人で作っても衝突しない。
-  - `local` — `ticket-id.sh next`。作業ツリーだけでなく、全てのブランチ（リモート追跡ブランチも `git fetch` してから）の `docs/tickets/`、`docs/flow/<id>/`、`<id>-` で始まるブランチ名の中の最大の番号 + 1。チケットがまだ実装ブランチにしか無い間でも番号が重複しない。
-- `docs/flow.config.yml` に `ticket` が無い（古い init で作った設定）場合は `tracker: local`・`prefix: T`・`pad: 6` として扱い、`/tixforge:project init` の再実行で設定できることを伝える。
+- **id のエラーを自分で直さない。** `normalize` が終了コード 2（桁数違い・形が不正）を返したり、`detect` が `invalid:` を返したりしたら、0 を補う・接頭辞を付けるなどして再実行しない。エラーをそのまま示し、正しい id をユーザーに尋ねる（桁の打ち間違いで別のチケットを指すのを防ぐための規則）。
+- 取り違えを防ぐため、dev・edit・cancel は始めるときに「`<id>`：<チケットのタイトル>」を必ずユーザーに示す。
 
 | 用途 | パス |
 |------|------|
-| サービス／ドメイン知識 | `docs/context/**`（必要な分だけ読む） |
-| チケット | `docs/tickets/<ticket-id>.md` — `local`：git で管理し、実装 PR の最初の commit に入る。`github`：**git で管理しない**。issue が正本で、手元は issue から作る作業用のコピー（`references/github.md`） |
-| flow 設定 | `docs/flow.config.yml`（git 管理する。チーム共通） |
-| flow 状態 | `docs/flow/<ticket-id>/main.md`（**git 管理外**。`<scripts>/run-state.sh` で作り、ヘッダを更新する） |
-| ブランチ名 | `<ticket-id>-<slug>`（チケット id を接頭辞にする） |
+| サービス／ドメイン知識 | `docs/context/**`（必要な分だけ読む。git 管理する） |
+| tixforge 設定 | `.tixforge/config.yml`（git 管理する。チーム共通） |
+| チケット | `.tixforge/<ticket-id>/ticket.md`（**git 管理外**）— `LT-`：これが正本。`GT-`：issue から作る作業用のコピー（`references/github.md`） |
+| run の状態 | `.tixforge/<ticket-id>/state.md`（**git 管理外**。`<scripts>/run-state.sh` で作り、ヘッダを更新する） |
+| ブランチ名 | `<ticket-id>-<slug>`（チケット id を接頭辞にする。slug は英小文字・数字・ハイフン） |
 
-- **`docs/flow/` は git で管理しない**（`.gitignore` に入れる）。flow 状態は各個人の作業記録であり、共有物ではない。また PR に含めるとレビュアーが検討過程に引っ張られ、実装そのものを見たレビューにならないため。`main.md` を commit・PR に含めない。PR 本文に書くのは、合意した方針の**結論と理由**（2〜3 行）だけにする。
-- **ドキュメント言語**：チケット・`docs/context/**`・flow 状態（`main.md`）の本文、および PR のタイトル・本文は `docs/flow.config.yml` の `language` で書く。既定は日本語（`ja`）。設定ファイルが無ければ日本語とする。チケットと context は見出しもこの言語にする（`main.md` の見出しは英語の固定キー）。
+- **`.tixforge/` の中で git 管理するのは `config.yml` と `.gitignore` だけ。** `.tixforge/.gitignore`（`*`・`!.gitignore`・`!config.yml`）がそれ以外を管理外にする。無ければ `run-state.sh init` と `issue-sync.sh pull` が作る。プロジェクトの `.gitignore` は触らない。チケットと run の状態は各個人の作業場所であり、共有物ではない。また PR に含めるとレビュアーが検討過程に引っ張られ、実装そのものを見たレビューにならないため。PR 本文に書くのは、合意した方針の**結論と理由**（2〜3 行）だけにする。
+- **ローカルのチケット（`LT-`）は PR から見えない。** GitHub に PR を出す（`host: github`）ときは、PR 本文に受け入れ条件を必ず転記する。`host: none` ではマージ commit の本文にチケットの要約を入れる。
+- **ドキュメント言語**：チケット・`docs/context/**`・run の状態（`state.md`）の本文、および PR のタイトル・本文は `.tixforge/config.yml` の `language` で書く。既定は日本語（`ja`）。設定ファイルが無ければ日本語とする。チケットと context は見出しもこの言語にする（`state.md` の見出しは英語の固定キー）。
   ```yaml
   # tixforge settings (shared, committed)
   language: ja   # ja | en | その他の言語名
@@ -46,23 +50,20 @@
     test: npm test
     lint: npm run lint
   ticket:
-    tracker: github   # github（issue と連携）| local（ローカルのみ）
-    prefix: T
-    pad: 6
+    tracker: github   # create が作るチケット：github（GT-。issue と連携）| local（LT-。手元のみ）
   repository:
     host: github          # github（PR を出す）| none（ローカルのみ。PR フェーズはローカルでマージ）
-    default_branch: main  # Plan の Base の既定値。host: none ではマージ先
+    base_branch: main  # Plan の Base の既定値。host: none ではマージ先
   review:
     required: true        # PR の Approve を必須にするか。1 人で開発するなら false
   gates: [approach, plan, pr]  # 必ず止まるゲート。pr は書かなくても必ず止まる（skills/dev/run.md「承認ゲート」）
   ```
   スクリプトはこの形（2 段までの入れ子・1 行 1 キー・`#` コメント）だけを読む。値に ` #` を含めるときは `"…"` で囲む。
-- `repository` が無い（古い init で作った設定）場合は、`origin` が GitHub を指していれば `host: github`、そうでなければ `host: none` として扱い、`default_branch` は `git symbolic-ref --short refs/remotes/origin/HEAD` から取る（取れなければ Plan で尋ねる）。`review` が無ければ `required: true`、`gates` が無ければ `[approach, plan, pr]` として扱う。いずれも `/tixforge:project init` の再実行で設定できることを伝える。
+- `repository` が無い（古い init で作った設定）場合は、`origin` が GitHub を指していれば `host: github`、そうでなければ `host: none` として扱い、`base_branch` は `git symbolic-ref --short refs/remotes/origin/HEAD` から取る（取れなければ Plan で尋ねる）。`review` が無ければ `required: true`、`gates` が無ければ `[approach, plan, pr]` として扱う。いずれも `/tixforge:project init` の再実行で設定できることを伝える。
 - `ticket.tracker: github` は `repository.host: github` のときだけ使える。
 - 上記パスは固定規約。`init` はこの規約どおりの雛形を作るだけで、パスの選択はしない。
-- 状態はあえて**フォルダ形式**（`docs/flow/<ticket-id>/main.md`）にしている。v2 の複数ブランチ対応で兄弟ファイル `docs/flow/<ticket-id>/<subticket>.md` を足すため。v1 では兄弟ファイルを作らない。
-- どのサブコマンドでも、既存ファイルを黙って上書きしない（`github` のときの作業用コピー `docs/tickets/<id>.md` は、issue から作り直すものなので例外。作り直すときは差分を示す）。
-- **キャンセル済みのチケット**（チケットに `Status: canceled`、または `main.md` の `Status` が `canceled`）は、どのサブコマンドでも操作しない。その旨を伝えて止まる。
+- どのサブコマンドでも、既存ファイルを黙って上書きしない（`GT-` の作業用コピー `.tixforge/<id>/ticket.md` は、issue から作り直すものなので例外。作り直すときは差分を示す）。
+- **キャンセル済みのチケット**（チケットに `Status: canceled`、または `state.md` の `Status` が `canceled`）は、どのサブコマンドでも操作しない。その旨を伝えて止まる。
 
 ### スクリプト（`<scripts>/`）
 
@@ -70,7 +71,7 @@
 
 | スクリプト | 用途 |
 |------------|------|
-| `ticket-id.sh` | id の正規化・issue 番号への変換・次の番号（上記） |
+| `ticket-id.sh` | id の取り出し・正規化・実在の確認・issue 番号への変換・次の番号（上記） |
 | `run-state.sh` | 状態ファイルの作成（`init`）、ヘッダの読み書き（`get` / `set`。`Status` の値を検査し、`Updated` も更新する） |
 | `verify.sh` | 検証コマンドの実行と `Verification @ <hash>: …` の行の出力 |
 | `review-input.sh` | Review の agent に渡す差分・commit 一覧をファイルに書き出す |
@@ -84,14 +85,14 @@
 - 仮定を置いて進めるときは**その仮定を明示**し、ユーザーが直せるようにする（該当セクションにも記録する）。
 - 不要な手順や成果物だと感じたら、黙ってやらず（黙って省きもせず）**指摘する**。
 - 懸念や反対は**理由付きで率直に**言う。ユーザーが提案したというだけで同意しない。
-- ユーザーには相手の言語で話す。チケット・context はドキュメント言語（共通規約）で書く。`main.md` のセクション本文もドキュメント言語で書く。
+- ユーザーには相手の言語で話す。チケット・context はドキュメント言語（共通規約）で書く。`state.md` のセクション本文もドキュメント言語で書く。
 
 ## ガードレール
 
 - dev の 1 run につき 1 チケット。作業が別チケットの範囲に広がりそうなら指摘する。
 - 明示的な確認なしに push / PR 作成 / マージをしない（dev の PR フェーズ）。flow は PR をマージしない（`host: none` のローカルマージだけは、確認の後に行う）。
 - **hook による強制**（tixforge plugin の `hooks/hooks.json` に同梱。plugin を有効にしていれば、tixforge の起動や `--resume` に関係なく全セッションで効く）：
-  - `scripts/guard.sh`（PreToolUse）— flow の run が関わる場所でだけ判定する。run のブランチと、進行中の run の Base では、push・PR 作成・許可リストに無い git / gh 操作（merge・rebase・reset・`gh pr merge`・`gh api` の書き込みなど）・GitHub / git の MCP の書き込みのたびに確認画面を出し、force push と `Closes #<番号>` の無い PR 作成をブロックする。Base への commit も確認画面を出す。Plan の承認前（`research`・`approach`・`plan`）に `docs/` 以外のファイルを Edit / Write しようとしたときも確認画面を出す。
+  - `scripts/guard.sh`（PreToolUse）— flow の run が関わる場所でだけ判定する。run のブランチと、進行中の run の Base では、push・PR 作成・許可リストに無い git / gh 操作（merge・rebase・reset・`gh pr merge`・`gh api` の書き込みなど）・GitHub / git の MCP の書き込みのたびに確認画面を出し、force push と `Closes #<番号>` の無い PR 作成をブロックする。Base への commit も確認画面を出す。Plan の承認前の run（`research`・`approach`・`plan`）があるときに、`docs/`・`.tixforge/` 以外のファイルを Edit / Write しようとしたときも確認画面を出す（Implement 以降に進んだ run のブランチの上では出さない）。
   - `scripts/session-start.sh`（SessionStart、`compact|resume`）— 会話の要約・再開の後、進行中の run と読み直すファイルを伝える。
   - 同じ hook をユーザー設定（`~/.claude/settings.json`）にも登録していると 2 回動く。`/tixforge:project init` の「古い導入の片付け」で外す。
   - **ブロックされたら、また確認画面で拒否されたら、コマンドを言い換えるなどして回避・再実行しない。** 理由（拒否なら拒否されたこと）をユーザーに伝えて指示を待つ。
@@ -101,7 +102,7 @@
 ## v1 の対象外（v2 送り）
 
 - GitHub issue 以外のチケット／知識ソース（Jira / GitHub Projects / Confluence）。
-- 複数ブランチ実行とサブチケット分割（`docs/flow/<ticket-id>/` 配下の兄弟ファイル）。
+- 複数ブランチ実行とサブチケット分割（`.tixforge/<ticket-id>/` 配下の兄弟ファイル）。
 - バックログ（チケットの分解・依存関係・優先度・次の 1 枚の提示）。
 
 ユーザーがこれらを求めたら、v2 の機能であることを伝え、v1 の範囲でできることを行う。

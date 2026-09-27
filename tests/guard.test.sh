@@ -30,25 +30,24 @@ done
 
 # --- fixtures ---------------------------------------------------------------
 
-# A repo whose branch T000001-login is owned by a tixforge run.
+# A repo whose branch GT-000001-login is owned by a tixforge run.
 flow="$tmp/flow-repo"
 git init -q -b main "$flow"
 git -C "$flow" commit -q --allow-empty -m init
-git -C "$flow" checkout -q -b T000001-login
-mkdir -p "$flow/docs/flow/T000001" "$flow/docs/tickets"
-printf '# T000001: Login\n\nIssue: #1\n' > "$flow/docs/tickets/T000001.md"
+git -C "$flow" checkout -q -b GT-000001-login
+mkdir -p "$flow/.tixforge/GT-000001"
+printf '*\n!.gitignore\n!config.yml\n' > "$flow/.tixforge/.gitignore"
+printf '# GT-000001: Login\n\n## 背景\n' > "$flow/.tixforge/GT-000001/ticket.md"
 
 # set_state <status> [pr-url]
 set_state() {
-  cat > "$flow/docs/flow/T000001/main.md" <<EOF
-# Flow: T000001
+  cat > "$flow/.tixforge/GT-000001/state.md" <<EOF
+# Run: GT-000001
 
 | Field   | Value                        |
 |---------|------------------------------|
 | Status  | $1                           |
-| Ticket  | docs/tickets/T000001.md      |
-| Issue   | #1                           |
-| Branch  | T000001-login                |
+| Branch  | GT-000001-login                |
 | Base    | main                         |
 | Updated | 2026-01-01 00:00             |
 
@@ -143,7 +142,7 @@ set_state implement:in-progress
 expect pass "$flow" 'git push'
 expect pass "$flow" 'git merge main'
 expect pass "$flow" 'git commit -m x'
-git -C "$flow" checkout -q T000001-login
+git -C "$flow" checkout -q GT-000001-login
 
 state="implement:in-progress"
 set_state implement:in-progress
@@ -151,7 +150,7 @@ expect pass "$flow" 'git status'
 expect pass "$flow" 'git stash push -m wip'
 expect pass "$flow" 'echo pushed'
 expect ask  "$flow" 'git push'
-expect ask  "$flow" 'git push -u origin T000001-login'
+expect ask  "$flow" 'git push -u origin GT-000001-login'
 expect ask  "$flow" 'git -C . push'
 expect ask  "$flow" 'command git push'
 expect ask  "$flow" 'FOO=1 git push'
@@ -164,11 +163,11 @@ reason_has "$flow" 'git push' 'implement:in-progress'
 
 state="pr:awaiting-approval"
 set_state pr:awaiting-approval
-expect ask  "$flow" 'git push -u origin T000001-login'
+expect ask  "$flow" 'git push -u origin GT-000001-login'
 expect deny "$flow" 'git push --force'
 expect deny "$flow" 'git push -f'
 expect deny "$flow" 'git push --force-with-lease'
-expect deny "$flow" 'git push origin +T000001-login'
+expect deny "$flow" 'git push origin +GT-000001-login'
 expect ask  "$flow" 'gh pr create --title t --body "Closes #1"'
 expect ask  "$flow" 'gh pr create --title t --body "fixes #1"'
 expect deny "$flow" 'gh pr create --title t --body "Closes #12"'
@@ -203,7 +202,7 @@ expect ask  "$flow" 'eval "git push"'
 expect ask  "$flow" 'env git push'
 expect ask  "$flow" '"git" push'
 expect ask  "$flow" "sh -c 'git push origin HEAD'"
-expect ask  "$flow" 'gh api repos/o/r/pulls -f title=t -f head=T000001-login -f base=main'
+expect ask  "$flow" 'gh api repos/o/r/pulls -f title=t -f head=GT-000001-login -f base=main'
 expect ask  "$flow" 'gh pr "create" --fill'
 expect deny "$flow" 'bash -c "git push --force"'
 expect ask  "$flow" 'echo "run git push later"'   # accepted false positive
@@ -216,7 +215,7 @@ expect pass "$flow" 'git log --oneline main..HEAD'
 expect pass "$flow" 'git diff main...HEAD'
 expect pass "$flow" 'git add -A && git commit -m "feat: x"'
 expect pass "$flow" 'git switch main'
-expect pass "$flow" 'git checkout -b T000001-login-2'
+expect pass "$flow" 'git checkout -b GT-000001-login-2'
 expect pass "$flow" 'git branch'
 expect pass "$flow" 'git stash list'
 expect pass "$flow" 'git -C . status'
@@ -230,7 +229,7 @@ expect ask  "$flow" 'git rebase main'
 expect ask  "$flow" 'git reset --hard HEAD~1'
 expect ask  "$flow" 'git commit --amend --no-edit'
 expect ask  "$flow" 'git checkout -- src/a.ts'
-expect ask  "$flow" 'git branch -D T000001-login'
+expect ask  "$flow" 'git branch -D GT-000001-login'
 expect ask  "$flow" 'git stash drop'
 expect ask  "$flow" 'git clean -fd'
 expect ask  "$flow" 'gh pr merge 9 --squash'
@@ -240,14 +239,14 @@ expect ask  "$flow" 'bash -c "git merge main"'
 expect ask  "$flow" 'cd . && git reset --hard'
 reason_has "$flow" 'gh pr merge 9' 'gh pr merge'
 # Forced forms of switch / checkout / fetch lose work or move a branch.
-expect pass "$flow" 'git switch -c T000001-login-3'
+expect pass "$flow" 'git switch -c GT-000001-login-3'
 expect pass "$flow" 'git fetch origin'
 expect pass "$flow" 'git fetch origin main:main'
 expect ask  "$flow" 'git switch -f main'
 expect ask  "$flow" 'git switch --discard-changes main'
-expect ask  "$flow" 'git switch -C T000001-login HEAD~1'
-expect ask  "$flow" 'git switch --force-create T000001-login HEAD~1'
-expect ask  "$flow" 'git checkout -B T000001-login HEAD~1'
+expect ask  "$flow" 'git switch -C GT-000001-login HEAD~1'
+expect ask  "$flow" 'git switch --force-create GT-000001-login HEAD~1'
+expect ask  "$flow" 'git checkout -B GT-000001-login HEAD~1'
 expect ask  "$flow" 'git checkout -f -b x'
 expect ask  "$flow" 'git fetch origin +main:main'
 expect ask  "$flow" 'git fetch -f origin main:main'
@@ -256,7 +255,7 @@ expect ask  "$flow" 'git fetch -f origin main:main'
 state="force push wording"
 expect ask  "$flow" "git commit -m 'docs: explain why push -f is banned'"
 reason_has "$flow" "git commit -m 'docs: explain why push -f is banned'" 'force push の可能性'
-expect deny "$flow" 'git add -A && git push -f origin T000001-login'
+expect deny "$flow" 'git add -A && git push -f origin GT-000001-login'
 expect deny "$flow" 'eval "git push --force-with-lease"'
 
 # The Base of an open run.
@@ -264,24 +263,24 @@ state="Base of an open run"
 git -C "$flow" checkout -q main
 expect pass "$flow" 'git status'
 expect pass "$flow" 'git log'
-expect pass "$flow" 'git switch T000001-login'
-expect ask  "$flow" 'git merge --no-ff T000001-login'
+expect pass "$flow" 'git switch GT-000001-login'
+expect ask  "$flow" 'git merge --no-ff GT-000001-login'
 expect ask  "$flow" 'git commit -m x'
 expect ask  "$flow" 'git push'
 expect deny "$flow" 'git push --force'
 reason_has "$flow" 'git commit -m x' 'Base ブランチ main'
 set_state done
-expect pass "$flow" 'git merge --no-ff T000001-login'   # the run is closed
+expect pass "$flow" 'git merge --no-ff GT-000001-login'   # the run is closed
 set_state implement:in-progress
-git -C "$flow" checkout -q T000001-login
+git -C "$flow" checkout -q GT-000001-login
 
 # A push on the branch of a finished run says so instead of "before the PR gate".
 state="finished run"
 set_state done
-expect ask  "$flow" 'git push origin T000001-login'
-reason_has "$flow" 'git push origin T000001-login' '完了済み'
+expect ask  "$flow" 'git push origin GT-000001-login'
+reason_has "$flow" 'git push origin GT-000001-login' '完了済み'
 set_state canceled
-reason_has "$flow" 'git push origin T000001-login' 'canceled'
+reason_has "$flow" 'git push origin GT-000001-login' 'canceled'
 set_state implement:in-progress
 
 # MCP tools: GitHub / git writes ask where a run is involved.
@@ -291,21 +290,36 @@ expect_tool pass "$flow" mcp__github__get_pull_request '{"pullNumber":9}'
 expect_tool pass "$flow" mcp__slack__post_message '{}'
 expect_tool pass "$plain" mcp__github__merge_pull_request '{"pullNumber":9}'
 
-# Edit / Write before the Plan is approved (docs/flow/.active).
+# Edit / Write before the Plan is approved.
 state="Edit before Plan approval"
 set_state plan:awaiting-approval
-echo T000001 > "$flow/docs/flow/.active"
 expect_tool ask  "$flow" Edit "{\"file_path\":\"$flow/src/a.ts\"}"
 expect_tool ask  "$flow" Write "{\"file_path\":\"$flow/new/dir/b.ts\"}"
-expect_tool pass "$flow" Edit "{\"file_path\":\"$flow/docs/tickets/T000001.md\"}"
-expect_tool pass "$flow" Write "{\"file_path\":\"$flow/docs/flow/T000001/main.md\"}"
+expect_tool pass "$flow" Edit "{\"file_path\":\"$flow/docs/context/overview.md\"}"
+expect_tool pass "$flow" Write "{\"file_path\":\"$flow/.tixforge/GT-000001/state.md\"}"
 expect_tool pass "$flow" Write "{\"file_path\":\"$tmp/elsewhere.txt\"}"
 set_state implement:in-progress
 expect_tool pass "$flow" Edit "{\"file_path\":\"$flow/src/a.ts\"}"
-rm -f "$flow/docs/flow/.active"
-set_state plan:awaiting-approval
+# Another run still before Implement: work on an implementing run's branch
+# goes on; anywhere else, editing asks.
+mkdir -p "$flow/.tixforge/GT-000002"
+printf '| Field   | Value |\n|---|---|\n| Status  | approach:in-progress |\n| Branch  | — |\n' > "$flow/.tixforge/GT-000002/state.md"
 expect_tool pass "$flow" Edit "{\"file_path\":\"$flow/src/a.ts\"}"
+git -C "$flow" checkout -q main
+expect_tool ask  "$flow" Edit "{\"file_path\":\"$flow/src/a.ts\"}"
+git -C "$flow" checkout -q GT-000001-login
+rm -rf "$flow/.tixforge/GT-000002"
 set_state implement:in-progress
+
+# A local ticket (LT-) has no issue, so a PR needs no Closes line.
+state="local ticket"
+mkdir -p "$flow/.tixforge/LT-000003"
+printf '| Field   | Value |\n|---|---|\n| Status  | pr:awaiting-approval |\n| Branch  | LT-000003-x |\n| Base    | main |\n' > "$flow/.tixforge/LT-000003/state.md"
+git -C "$flow" checkout -q -b LT-000003-x
+expect ask  "$flow" 'gh pr create --title t --body "no issue"'
+git -C "$flow" checkout -q GT-000001-login
+git -C "$flow" branch -q -D LT-000003-x
+rm -rf "$flow/.tixforge/LT-000003"
 
 state="no jq"
 set_state implement:in-progress
@@ -315,7 +329,7 @@ expect pass "$plain" 'git stash push -m wip' "$nojq"
 expect pass "$plain" 'git push'              "$nojq"
 git -C "$flow" checkout -q main
 expect pass "$flow"  'git push'              "$nojq"
-git -C "$flow" checkout -q T000001-login
+git -C "$flow" checkout -q GT-000001-login
 reason_has "$flow" 'git push' 'jq' "$nojq"
 
 echo "guard: $pass passed, $fail failed"

@@ -20,22 +20,22 @@ if [ -f "$conf" ]; then
   # An explicit empty list (no gate but the PR one) is not the same as a
   # missing key.
   [ -z "$gates" ] && cfg_has gates "$conf" && gates="[]（pr のみ）"
-  echo "- 設定（docs/flow.config.yml）: language=$(cfg language "$conf")" \
+  echo "- 設定（.tixforge/config.yml）: language=$(cfg language "$conf")" \
     "tracker=$(cfg ticket.tracker "$conf")" \
     "host=$(cfg repository.host "$conf")" \
-    "default_branch=$(cfg repository.default_branch "$conf")" \
+    "base_branch=$(cfg repository.base_branch "$conf")" \
     "review.required=$(cfg review.required "$conf")" \
     "gates=${gates:-（未設定）}"
 else
-  echo "- docs/flow.config.yml が無い（/tixforge:project init が未実行）"
+  echo "- .tixforge/config.yml が無い（/tixforge:project init が未実行）"
 fi
 
 open=""
-for f in "$top"/docs/flow/*/main.md; do
+for f in "$(tf_dir "$top")"/*/state.md; do
   [ -f "$f" ] || continue
   s=$(field "$f" Status)
   is_open_status "$s" || continue
-  id=${f%/main.md}; id=${id##*/}
+  id=${f%/state.md}; id=${id##*/}
   open="${open}  - ${id}: Status ${s}、Branch $(field "$f" Branch)
 "
 done
