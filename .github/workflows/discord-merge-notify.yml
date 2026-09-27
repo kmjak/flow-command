@@ -1,44 +1,41 @@
-name: discord-merge-notify
+# Notify Discord when a new version reaches the default branch: the version
+# change and every PR merged since the previous version. Pushes that do not
+# change "version" in .claude-plugin/plugin.json send nothing.
+name: discord-release-notify
 
 on:
-  pull_request:
-    types: [closed]
+  push:
+    branches: [main]
+    paths:
+      - .claude-plugin/plugin.json
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   notify:
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the previous version is found in the history
+      - name: Build the message
+        id: payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          bash .github/scripts/release-payload.sh "$BEFORE" "$AFTER" > "$RUNNER_TEMP/payload.json"
+          if [ -s "$RUNNER_TEMP/payload.json" ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version unchanged: nothing to send"
+          fi
       - name: Notify Discord
+        if: steps.payload.outputs.send == 'true'
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          TITLE: ${{ github.event.pull_request.title }}
-          BODY: ${{ github.event.pull_request.body }}
-          URL: ${{ github.event.pull_request.html_url }}
-          NUMBER: ${{ github.event.pull_request.number }}
-          AUTHOR: ${{ github.event.pull_request.user.login }}
-          MERGED_AT: ${{ github.event.pull_request.merged_at }}
-          REPO: ${{ github.repository }}
-        run: |
-          jq -n \
-            --arg t "$TITLE" --arg body "$BODY" --arg u "$URL" --arg n "$NUMBER" \
-            --arg a "$AUTHOR" --arg at "$MERGED_AT" --arg r "$REPO" '
-            def clip($max): if length > $max then .[0:$max - 1] + "…" else . end;
-            # First paragraph of the PR body that is not a heading or a comment.
-            ($body | gsub("\r"; "") | split("\n\n") | map(gsub("^\\s+|\\s+$"; ""))
-              | map(select(. != "" and (startswith("#") | not) and (startswith("<!--") | not)))
-              | (.[0] // "") | clip(300)) as $summary
-            | {
-                username: "Flow Command更新通知",
-                embeds: [{
-                  title: ($t | clip(256)),
-                  url: $u,
-                  color: 8311585,
-                  fields: [
-                    {name: "PR", value: ("#" + $n), inline: true},
-                    {name: "作成者", value: $a, inline: true}
-                  ],
-                  footer: {text: $r},
-                  timestamp: $at
-                } + (if $summary == "" then {} else {description: $summary} end)]
-              }' | curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$WEBHOOK"
+        run: curl -sS --fail-with-body -H "Content-Type: application/json" -d @"$RUNNER_TEMP/payload.json" "$WEBHOOK"
