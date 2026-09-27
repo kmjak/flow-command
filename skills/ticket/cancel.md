@@ -1,6 +1,6 @@
 # /tixforge:ticket cancel — チケットをやめる
 
-目的：もう実装しないと決めたチケットを「キャンセル済み」として記録する。**消さずに残し、以後はどのサブコマンドからも操作しない。** ブランチ・リモートブランチには触らない。run だけをやり直したいなら `/tixforge:dev reset` を案内する。
+目的：もう実装しないと決めたチケットを「キャンセル済み」として記録する。**消さずに残し、以後はどのサブコマンドからも操作しない。** ブランチ・リモートブランチには触らない。run だけをやり直したいなら `/tixforge:dev rewind` を案内する。
 
 1. **準備**：引数のチケット id を `bash <scripts>/ticket-id.sh normalize <引数>` で正規化する（無ければ尋ねる）。id が `GT-` なら `references/github/fetch.md`・`labels.md`・`record.md`（`references/github/` の下）を Read する。
 2. **チケットを読む**：

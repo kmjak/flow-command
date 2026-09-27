@@ -12,6 +12,6 @@
    - 追加がチケットの範囲を大きく広げる（別の機能・別の受け入れ条件の塊になる）なら、このチケットに足さず、別のチケットに分けることを提案する。
 4. 変更後の全文と差分を示して合意を得る。`GT-` なら、issue のタイトル・本文がどう変わるかも示す。
 5. **書き換える**：チケットを書き換える。`GT-` なら、すぐに `issue-sync.sh push <番号> .tixforge/<ticket-id>/ticket.md` で issue に書き戻す（`sync.md`。終了コード 5 なら、他の人の変更を消さないよう取ってき直してから当て直す）。
-6. **フェーズを戻す**：進行中の run がある場合（`.tixforge/<ticket-id>/state.md` があり、`Status` が `done`・`canceled` 以外）は、`references/rollback.md` を Read して、その手順でフェーズを戻すか決める。
+6. **フェーズを戻す**：進行中の run がある場合（`.tixforge/<ticket-id>/state.md` があり、`Status` が `done`・`canceled` 以外）は、`<plugin>/skills/dev/rewind.md` を Read し、その「チケットが変わったとき」の手順でフェーズを戻すか決める。
 7. 行ったこと（`GT-` なら issue の URL も）を伝える。
 8. **commit はしない**（チケットは git で管理しない）。
