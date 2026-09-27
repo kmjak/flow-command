@@ -473,7 +473,9 @@ eq "labels: all present" "$(il setup)" "setup again"
 section="github-preflight.sh"
 eq "ok: o/r" "$(bash "$scripts/github-preflight.sh")" "ok"
 GH_NO_AUTH=1 bash "$scripts/github-preflight.sh" >/dev/null; eq 4 $? "not logged in"
-PATH=/usr/bin:/bin bash "$scripts/github-preflight.sh" >/dev/null; eq 3 $? "no gh"
+# A PATH with bash only: gh may live in /usr/bin (GitHub's Ubuntu runners).
+nogh="$tmp/nogh-bin"; mkdir -p "$nogh"; ln -s "$(command -v bash)" "$nogh/bash"
+PATH="$nogh" "$nogh/bash" "$scripts/github-preflight.sh" >/dev/null; eq 3 $? "no gh"
 
 # --- pr-status.sh ----------------------------------------------------------
 section="pr-status.sh"
