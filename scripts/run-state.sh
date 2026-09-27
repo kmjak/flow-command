@@ -9,8 +9,21 @@
 #   run-state.sh get <id> [field]            print a header field (default Status)
 #   run-state.sh set <id> <field> <value>    set Status / Branch / Base; also sets Updated
 #   run-state.sh list                        "<id>\t<Status>\t<Branch>" for every run
+#   run-state.sh rewind <id> <phase> [--keep-log] [--reason <text>]
+#                                            go back to research / approach / plan / implement
 #
-# Exit: 0 ok, 1 no such run, 2 usage or invalid value, 3 run already exists.
+# rewind moves the sections of the target phase and every later phase into
+# .tixforge/<id>/history/<time>.md (so they are not read as approved any
+# more, but can be looked up), leaves them empty in state.md, puts
+# "> 巻き戻し（<time>）：<reason>" under the target section, and sets Status
+# to <phase>:in-progress. Going back to implement keeps the Implementation
+# Log (the commits are still there) and moves Review and PR. --keep-log
+# keeps the Implementation Log too when going back further (the work goes
+# on on the same branch). Prints the history file. Refuses a done or
+# canceled run.
+#
+# Exit: 0 ok, 1 no such run, 2 usage or invalid value, 3 run already exists,
+#       4 the run is done or canceled.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
@@ -26,7 +39,7 @@ valid_status() {
     plan:in-progress|plan:awaiting-approval) ;;
     implement:in-progress|implement:awaiting-approval) ;;
     review:in-progress|review:awaiting-approval) ;;
-    pr:in-progress|pr:awaiting-approval|pr:awaiting-review) ;;
+    pr:in-progress|pr:awaiting-approval|pr:awaiting-review|pr:ready-to-merge) ;;
     done|canceled) ;;
     *) return 1 ;;
   esac
@@ -42,6 +55,19 @@ put() {
     { print }
     END { if (!done) exit 1 }' "$1" > "$tmp" || { rm -f "$tmp"; echo "no field $2 in $1" >&2; exit 2; }
   cat "$tmp" > "$1"; rm -f "$tmp"
+}
+
+# The sections of state.md in phase order, and their empty placeholders.
+SECTIONS="Research|Approach|Plan|Implementation Log|Review|PR"
+placeholder() {
+  case "$1" in
+    Research) echo '<!-- Phase 1: organized understanding of the ticket + relevant context -->' ;;
+    Approach) echo '<!-- Phase 2: chosen implementation approach and key design decisions -->' ;;
+    Plan) echo '<!-- Phase 3: branch, base, acceptance criteria -> verification table, ordered commits -->' ;;
+    'Implementation Log') echo '<!-- Phase 4: commits, verification results, manual checks, notable decisions -->' ;;
+    Review) echo '<!-- Phase 5: reviewer findings as rounds, with recommendations and decisions -->' ;;
+    PR) echo '<!-- Phase 6: title, target branch, URL, review outcome -->' ;;
+  esac
 }
 
 cmd=${1:-}; [ $# -gt 0 ] && shift
@@ -98,6 +124,58 @@ EOF
     put "$f" "$2" "$3"
     put "$f" Updated "$(flow_now)"
     field "$f" "$2"
+    ;;
+  rewind)
+    [ $# -ge 2 ] || usage
+    id=$1 phase=$2 keep="" reason=""; shift 2
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --keep-log) keep=1; shift ;;
+        --reason) [ $# -ge 2 ] || usage; reason=$2; shift 2 ;;
+        *) usage ;;
+      esac
+    done
+    f=$(sfile "$id"); [ -f "$f" ] || { echo "no run: $id" >&2; exit 1; }
+    before=$(field "$f" Status)
+    case $before in done|canceled) echo "run $id is $before: it cannot be rewound" >&2; exit 4 ;; esac
+    case $phase in
+      research) from=1; target=Research ;;
+      approach) from=2; target=Approach ;;
+      plan) from=3; target=Plan ;;
+      implement) from=5; target='Implementation Log'; keep=1 ;;
+      *) echo "cannot rewind to: $phase (research, approach, plan, implement)" >&2; exit 2 ;;
+    esac
+    now=$(flow_now)
+    hist="$(dirname "$f")/history/$(date '+%Y%m%d-%H%M%S').md"
+    mkdir -p "$(dirname "$hist")"
+    tmp=$(mktemp) || exit 1
+    # Section n (1-based in SECTIONS) moves when n >= from, except the
+    # Implementation Log (4) with --keep-log.
+    awk -v from="$from" -v keep="$keep" -v target="$target" -v hist="$hist" \
+        -v head="# Rewound to $phase ($now)" -v was="Status before: $before" \
+        -v why="$reason" -v note="> 巻き戻し（${now}）：${reason}" -v names="$SECTIONS" \
+        -v ph1="$(placeholder Research)" -v ph2="$(placeholder Approach)" -v ph3="$(placeholder Plan)" \
+        -v ph4="$(placeholder 'Implementation Log')" -v ph5="$(placeholder Review)" -v ph6="$(placeholder PR)" '
+      BEGIN {
+        n = split(names, order, "|"); for (i = 1; i <= n; i++) idx[order[i]] = i
+        ph[1] = ph1; ph[2] = ph2; ph[3] = ph3; ph[4] = ph4; ph[5] = ph5; ph[6] = ph6
+        print head > hist; print "" > hist; print was > hist
+        if (why != "") print "Reason: " why > hist
+      }
+      /^## / {
+        name = substr($0, 4); cur = (name in idx) ? idx[name] : 0
+        moving = cur >= from && !(cur == 4 && keep != "")
+        print
+        if (name == target && why != "") print note
+        if (moving) { print "" > hist; print $0 > hist; print ph[cur]; print "" }
+        next
+      }
+      moving { print > hist; next }
+      { print }' "$f" > "$tmp" || { rm -f "$tmp"; exit 1; }
+    cat "$tmp" > "$f"; rm -f "$tmp"
+    put "$f" Status "$phase:in-progress"
+    put "$f" Updated "$now"
+    printf '%s\n' "${hist#$top/}"
     ;;
   list)
     for f in "$(tf_dir "$top")"/*/state.md; do

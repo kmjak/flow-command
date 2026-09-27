@@ -44,6 +44,14 @@ gates: [approach, plan, pr]
 EOF
 git add -A && git commit -q -m init   # .tixforge/.gitignore comes with the first run
 
+# --- all scripts ------------------------------------------------------------
+# "$var（" makes bash read the first byte of a multibyte character as part of
+# the name (unbound variable under set -u, depending on the locale). Write
+# ${var} before non-ASCII text.
+section="all scripts"
+bad=$(LC_ALL=C grep -nE '\$[A-Za-z_][A-Za-z0-9_]*[^ -~]' "$scripts"/*.sh || true)
+eq "" "$bad" "no \$var directly followed by a non-ASCII character"
+
 # --- lib.sh ----------------------------------------------------------------
 section="lib.sh cfg"
 . "$scripts/lib.sh"
@@ -144,6 +152,39 @@ st set LT-000001 Status implement:in-progress >/dev/null
 grep -q '^## Implementation Log' .tixforge/LT-000001/state.md && ok || ng "sections kept"
 eq "$(printf 'LT-000001\timplement:in-progress\tLT-000001-a')" "$(st list)" "list"
 st get LT-000404 2>/dev/null; eq 1 $? "no such run"
+eq pr:ready-to-merge "$(st set LT-000001 Status pr:ready-to-merge)" "ready-to-merge is a Status"
+st set LT-000001 Status implement:in-progress >/dev/null
+
+# rewind: later sections move to history/, the target gets a note.
+mkdir -p .tixforge/LT-000009
+bash "$scripts/run-state.sh" init LT-000009 >/dev/null
+f9=.tixforge/LT-000009/state.md
+for sec in Research Approach Plan 'Implementation Log' Review PR; do
+  awk -v s="## $sec" -v b="body of $sec" '$0 == s { print; print b; skip = 1; next } skip && /^<!--/ { skip = 0; next } { skip = 0; print }' "$f9" > "$tmp/s9" && cat "$tmp/s9" > "$f9"
+done
+st set LT-000009 Status review:in-progress >/dev/null
+h=$(st rewind LT-000009 plan --reason "分割を変える")
+has ".tixforge/LT-000009/history/" "$h" "rewind prints the history file"
+eq plan:in-progress "$(st get LT-000009)" "rewind sets the Status"
+has "body of Approach" "$(cat "$f9")" "earlier sections stay"
+case "$(cat "$f9")" in *"body of Plan"*|*"body of Review"*) ng "the target and later sections leave state.md" ;; *) ok ;; esac
+has "body of Plan" "$(cat "$h")" "they are in the history file"
+has "Status before: review:in-progress" "$(cat "$h")" "history records the Status before"
+has "> 巻き戻し（" "$(cat "$f9")" "the target section notes the rewind"
+has "分割を変える" "$(cat "$f9")" "with the reason"
+sleep 1
+awk '$0 == "## Implementation Log" { print; print "kept log"; next } { print }' "$f9" > "$tmp/s9" && cat "$tmp/s9" > "$f9"
+st rewind LT-000009 approach --keep-log >/dev/null
+has "kept log" "$(cat "$f9")" "--keep-log keeps the Implementation Log"
+awk '$0 == "## Review" { print; print "a review"; next } { print }' "$f9" > "$tmp/s9" && cat "$tmp/s9" > "$f9"
+sleep 1
+st rewind LT-000009 implement >/dev/null
+has "kept log" "$(cat "$f9")" "rewinding to implement keeps the log"
+case "$(cat "$f9")" in *"a review"*) ng "rewinding to implement moves Review" ;; *) ok ;; esac
+st rewind LT-000009 review 2>/dev/null; eq 2 $? "cannot rewind to review"
+st set LT-000009 Status done >/dev/null
+st rewind LT-000009 plan 2>/dev/null; eq 4 $? "a done run is not rewound"
+rm -rf .tixforge/LT-000009
 
 # --- project-status.sh -------------------------------------------------------------
 section="project-status.sh"
@@ -166,6 +207,11 @@ git switch -q LT-000001-a
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 has "run LT-000001" "$out" "run on this branch"
 has "skills/dev/run.md" "$out" "tells to re-read run.md"
+case "$out" in *"skills/dev/pr.md"*) ng "pr.md only in the PR phase" ;; *) ok ;; esac
+bash "$scripts/run-state.sh" set LT-000001 Status pr:awaiting-review >/dev/null
+out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
+has "skills/dev/pr.md" "$out" "the PR phase also re-reads pr.md"
+bash "$scripts/run-state.sh" set LT-000001 Status implement:in-progress >/dev/null
 git switch -q main
 out=$(printf '{"source":"compact","cwd":"%s"}' "$repo" | bash "$scripts/session-start.sh")
 eq "" "$out" "no run on main"

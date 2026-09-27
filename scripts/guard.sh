@@ -313,7 +313,7 @@ pr_url=$(awk '/^## PR/{p=1; next} /^## /{p=0} p' "$state" | grep -Eo -m1 'https:
 case "$status" in
   pr:awaiting-approval)
     note="PR ゲート：${obj}承認しますか？" ;;
-  pr:awaiting-review|pr:in-progress)
+  pr:awaiting-review|pr:in-progress|pr:ready-to-merge)
     if [ $is_pr_create -eq 1 ] && [ -n "$pr_url" ]; then
       note="⚠ PR は既にあります（${pr_url}）。${obj}承認しますか？"
     elif [ -n "$pr_url" ]; then

@@ -42,10 +42,14 @@ fi
 [ -n "$run" ] || exit 0
 
 id=${run%/state.md}; id=${id##*/}
+st=$(field "$run" Status)
+extra=""
+case "$st" in pr:*) extra="
+- ${here%/scripts}/skills/dev/pr.md" ;; esac
 cat <<EOF
 [tixforge] この作業ディレクトリでは /tixforge:dev の run ${id} が進行中です（Status: $(field "$run" Status)、Branch: $(field "$run" Branch)）。
 会話が要約・再開されたため、手順書の細部が失われている可能性があります。tixforge の作業を続ける前に、次を Read し直してください:
-- ${here%/scripts}/skills/dev/run.md
+- ${here%/scripts}/skills/dev/run.md${extra}
 - ${here%/scripts}/references/common.md
 - ${run#$top/}
 EOF
